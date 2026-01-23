@@ -1,0 +1,41 @@
+Package: Corncrake_flightheights_study
+Type: Package
+Title: The Title of the Project
+Version: 0.0.0.9000
+Authors@R: c(
+    person(given   = "Ryan",
+           family  = "Boswarthick",
+           role    = c("aut", "cre", "cph"),
+           email   = "ryan.boswarthick@outlook.com",
+           comment = c(ORCID = "0009-0007-2335-6543")))
+Description: A paragraph providing a full description of the project (on 
+    several lines...)
+URL: https://github.com/RyanBoswarthick/Corncrake_flightheights_study
+BugReports: https://github.com/RyanBoswarthick/Corncrake_flightheights_study/issues
+License: GPL-2
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Imports: 
+    adehabitatHR,
+    data.table,
+    dplyr,
+    geosphere,
+    here,
+    htmlwidgets,
+    leaflet,
+    lme4,
+    lubridate,
+    mapview,
+    move,
+    move2,
+    purrr,
+    raster,
+    readr,
+    sf,
+    stringr,
+    suncalc,
+    utils,
+    webshot
+Depends: 
+    ggplot2
