@@ -10,19 +10,69 @@ load_your_csvs <- function(data_folder) {
 #============
 #############
 
-select_gps_cols <- function(data_list) {
-  target_columns <- c(
-    "device_id", "UTC_datetime", "UTC_date", "UTC_time", "datatype",
-    "satcount", "U_bat_mV", "bat_soc_pct", "solar_I_mA", "hdop",
-    "Latitude", "Longitude", "Altitude_m", "speed_km_h", "direction_deg",
-    "temperature_C", "mag_x", "mag_y", "mag_z", "acc_x", "acc_y", "acc_z"
-  )
+loadandcombine_your_csvs <- function(data_folder) {
+  # Liste de tous les fichiers CSV
+  files <- list.files(data_folder, pattern = "\\.csv$", full.names = TRUE)
+  # Fonction pour lire un fichier
+  read_file <- function(file) {
+    readr::read_csv(file, show_col_types = FALSE)
+  }
+  # Lire et fusionner tous les fichiers
+  all_data <- purrr::map_dfr(files, read_file)
+
+  return(all_data)
+}
+
+#############
+#============
+#############
+
+select_gps_cols_list <- function(data_list, target_columns) {
   data_list |> 
     purrr::map(\(df) {
       df |> 
         dplyr::mutate(device_id = as.character(device_id)) |> 
         dplyr::select(dplyr::any_of(target_columns))
     })
+}
+
+#############
+#============
+#############
+
+select_gps_cols_df_GMtag <- function(df, target_columns) {
+  df |> 
+    dplyr::mutate(
+      device_id = as.character(`Device Name`), 
+      UTC_datetime = `Pick Time`,
+      speed_km_h = Speed,
+      Altitude_m = Altitude,
+      temperature_C = Temperature,
+      U_bat_mV = Voltage, 
+      satcount = Satellites,
+      hdop = HDOP,
+      direction_deg = Course
+    ) |>
+    dplyr::mutate(
+      UTC_date = as.Date(UTC_datetime),
+      UTC_time = hms::as_hms(UTC_datetime)
+    ) |>
+    dplyr::select(dplyr::any_of(target_columns))
+}
+
+#############
+#============
+#############
+
+select_gps_cols_df_OTtag <- function(df, target_columns) {
+  df |> 
+    dplyr::mutate(
+      device_id = as.character(device_id),
+      U_bat_mV = U_bat_mV/1000,
+      UTC_date = as.Date(UTC_datetime),
+      UTC_time = hms::as_hms(UTC_datetime) 
+    ) |> 
+    dplyr::select(dplyr::any_of(target_columns))
 }
 
 #############
@@ -66,7 +116,7 @@ combine_gps_data <- function(data_list) {
 #============
 #############
 
-cleanyour_gpsdata_please <- function(data) {
+cleanyour_gpsdata_please_df <- function(data) {
   data |>
     dplyr::filter(
       datatype == "GPS",
@@ -81,6 +131,23 @@ cleanyour_gpsdata_please <- function(data) {
       ),
       UTC_date = lubridate::ymd(UTC_date),
       UTC_time = lubridate::hms(UTC_time),
+      device_id = as.factor(device_id)
+    )
+}
+
+#############
+#============
+#############
+
+cleanyour_gpsdata_please_df_withoutUTC <- function(data) {
+  data |>
+    dplyr::filter(
+      !is.na(Latitude), 
+      !is.na(Longitude),
+      !(Latitude == 0 & Longitude == 0)
+    ) |>
+    # 3. Formatage final
+    dplyr::mutate(
       device_id = as.factor(device_id)
     )
 }

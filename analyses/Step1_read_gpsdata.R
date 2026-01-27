@@ -1,12 +1,71 @@
-raw_data<-load_your_csvs("data/raw_data")
 
-raw_data_cols<-select_gps_cols(raw_data)
+target_columns <- c(
+    "country", "device_id", 
+    "UTC_datetime", "UTC_date", "UTC_time",
+    "Latitude", "Longitude", 
+    "hdop", "satcount",
+    "U_bat_mV", 
+    "Altitude_m", "speed_km_h", "direction_deg",
+    "temperature_C")
 
-raw_data_cols_formatted<-cleanyour_gpsdata_list(raw_data_cols)
+irish_data<-loadandcombine_your_csvs("data/raw_data/irish_data")
+names(irish_data)
+irish_data$country <- "IRE"
 
-full_dataset <- combine_gps_data(raw_data_cols_formatted)
+irish_data_clean<-select_gps_cols_df_GMtag(irish_data, target_columns)
+summary(irish_data_clean)
+write.csv(irish_data_clean, file = "outputs/01_irish_data.csv", row.names = FALSE)
 
-full_dataset_clean<-cleanyour_gpsdata_please(full_dataset)
+#############
+scottish_data<-loadandcombine_your_csvs("data/raw_data/scottish_data")
+names(scottish_data)
+scottish_data$country <- "SCOT"
 
-str(full_dataset_clean)
-write.csv(full_dataset_clean, file = "outputs/01_fulldataset.csv", row.names = FALSE)
+scottish_data <- scottish_data |>
+  dplyr::mutate(
+    UTC_datetime = lubridate::dmy_hm(UTC_datetime)
+  )
+scottish_data_clean<-select_gps_cols_df_OTtag(scottish_data, target_columns)
+summary(scottish_data_clean)
+
+write.csv(scottish_data_clean, file = "outputs/01_scottish_data.csv", row.names = FALSE)
+
+#############
+french_data<-read.csv("data/raw_data/fulldata_france.csv")
+french_data$country <- "FRA"
+
+french_data <- french_data |>
+  dplyr::mutate(
+    UTC_datetime = as.POSIXct(UTC_datetime)
+  )
+french_data_clean<-select_gps_cols_df_OTtag(french_data, target_columns)
+summary(french_data_clean)
+
+write.csv(french_data_clean, file = "outputs/01_french_data.csv", row.names = FALSE)
+
+#############
+est_data<-read.csv("data/raw_data/Raagud11nov2025.csv")
+est_data$country <- "EST"
+
+est_data <- est_data |>
+  dplyr::mutate(
+    UTC_datetime = as.POSIXct(UTC_datetime)
+  )
+
+est_data_clean<-select_gps_cols_df_OTtag(est_data, target_columns)
+unique(est_data_clean$device_id)
+write.csv(est_data_clean, file = "outputs/01_estonian_data.csv", row.names = FALSE)
+
+#############
+#============
+#############
+
+full_data<-rbind(irish_data_clean, scottish_data_clean, french_data_clean, est_data_clean)
+
+full_data <- full_data |>
+  dplyr::arrange(device_id, UTC_datetime) |>
+  dplyr::group_by(device_id)
+
+summary(full_data)
+
+write.csv(full_data, file = "outputs/01_fulldataset.csv", row.names = FALSE)
