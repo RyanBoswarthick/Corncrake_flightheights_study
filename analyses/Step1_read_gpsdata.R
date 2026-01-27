@@ -62,10 +62,10 @@ write.csv(est_data_clean, file = "outputs/01_estonian_data.csv", row.names = FAL
 
 full_data<-rbind(irish_data_clean, scottish_data_clean, french_data_clean, est_data_clean)
 
-full_data <- full_data |>
+full_data_order <- full_data |>
   dplyr::arrange(device_id, UTC_datetime) |>
   dplyr::group_by(device_id)
 
-summary(full_data)
+summary(full_data_order)
 
-write.csv(full_data, file = "outputs/01_fulldataset.csv", row.names = FALSE)
+write.csv(full_data_order, file = "outputs/01_fulldataset.csv", row.names = FALSE)
