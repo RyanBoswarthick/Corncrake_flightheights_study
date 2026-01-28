@@ -53,18 +53,39 @@ est_data <- est_data |>
   )
 
 est_data_clean<-select_gps_cols_df_OTtag(est_data, target_columns)
-unique(est_data_clean$device_id)
+
 write.csv(est_data_clean, file = "outputs/01_estonian_data.csv", row.names = FALSE)
 
 #############
 #============
 #############
 
-full_data<-rbind(irish_data_clean, scottish_data_clean, french_data_clean, est_data_clean)
-
+full_data <- dplyr::bind_rows(
+  irish_data_clean, 
+  scottish_data_clean, 
+  french_data_clean, 
+  est_data_clean
+)
 full_data_order <- full_data |>
   dplyr::arrange(device_id, UTC_datetime) |>
   dplyr::group_by(device_id)
+
+##### Check that the UTC time are the same
+df_verif <- full_data_order |>
+  dplyr::mutate(
+    # 1. Conversion propre en POSIXct (en forçant l'UTC)
+    dt_obj = lubridate::as_datetime(UTC_datetime, tz = "UTC"),
+    
+    # 2. Extraction de l'heure au format "HH:MM:SS"
+    # On transforme UTC_time en caractère pour une comparaison textuelle simple
+    time_from_dt = format(dt_obj, "%H:%M:%S"),
+    time_ref     = as.character(UTC_time),
+    
+    # 3. Test de correspondance
+    is_matching = (time_from_dt == time_ref)
+  )
+anomalies <- df_verif |>
+  dplyr::filter(!is_matching)
 
 summary(full_data_order)
 

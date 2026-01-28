@@ -9,17 +9,29 @@ table(data$country)
 table(data$device_id)
 
 #################
-
+# Format temporal dataset
 data_temporal<- data |>
+  dplyr::arrange(device_id, UTC_datetime) |>
   dplyr::group_by(device_id) |>
   dplyr::mutate(
     t0 = min(UTC_datetime, na.rm = TRUE),
     time_since_beg = as.numeric(difftime(UTC_datetime, t0, units = "hours")),
     heure = lubridate::hour(UTC_datetime) + lubridate::minute(UTC_datetime)/60,
+    delta_time_s = as.numeric(difftime(UTC_datetime, dplyr::lag(UTC_datetime), units = "secs")),
     jour_annee = lubridate::yday(UTC_datetime)
   ) |>
   dplyr::ungroup()
 #################
+#Explo graph en tout genre
+
+summary_explo <- data_temporal |>
+  dplyr::group_by(country, device_id) |>
+  dplyr::summarise(
+    total_points = dplyr::n(),
+    total_days   = as.numeric(difftime(max(UTC_datetime), min(UTC_datetime), units = "days")) + 1,
+    pts_per_day  = total_points / total_days,
+    .groups = "drop"
+  )
 
 ### Days monitored
 monitoring_days <- data_temporal |>
@@ -51,12 +63,7 @@ write.csv(
   row.names = FALSE
 )
 
-### Days monitored
-gps_deltatime <- data_temporal |>
-  dplyr::arrange(device_id, UTC_datetime) |>
-  dplyr::group_by(device_id) |> 
-  dplyr::mutate(delta_time_s = as.numeric(difftime(UTC_datetime, dplyr::lag(UTC_datetime), units = "secs"))) |>
-  dplyr::ungroup()
+### Diff time
 
 gps_deltatime$delta_time_m<-gps_deltatime$delta_time_s/60
 
@@ -64,7 +71,7 @@ gps_deltatime<-gps_deltatime |>
   dplyr::filter(!is.na(delta_time_s))
 
 data_2h <- gps_deltatime |>
-  dplyr::filter(delta_time_s < 130*60)
+  dplyr::filter(delta_time_s < 60*60*12)
 
 stats_delta_2h <- data_2h |>
   dplyr::summarise(
@@ -77,25 +84,29 @@ stats_delta_2h <- data_2h |>
   )
 stats_delta_2h
 
-boxplot_120<-ggplot2::ggplot(data_120min |>
-                   dplyr::filter(!is.na(delta_time_s)),
-                 ggplot2::aes(x = device_id, y = delta_time_s)) +
-  ggplot2::geom_boxplot(fill = "steelblue", outlier.size = 0.5) +
+
+boxplot_120 <- ggplot2::ggplot(data_2h |> 
+                                 dplyr::filter(!is.na(delta_time_s)), 
+                               ggplot2::aes(x = country, 
+                                            y = delta_time_s/3600, 
+                                            fill = country)) + 
+  # En ajoutant 'group = device_id', ggplot fait un boxplot par capteur
+  # mais les aligne sous l'étiquette de leur pays respectif
+  ggplot2::geom_boxplot(ggplot2::aes(group = device_id), 
+                        outlier.size = 0.5, 
+                        position = ggplot2::position_dodge(width = 0.8)) +
   ggplot2::labs(
-    x = "Individu (device_id)",
-    y = "Intervalle entre 2 points GPS (s)",
-    title = "Distribution de delta_time_s par individu"
+    x = "Pays",
+    y = "Intervalle (heures)",
+    title = "Distribution du delta_time par individu regroupé par pays",
+    fill = "Pays"
   ) +
-  ggplot2::theme_minimal()
+  ggplot2::theme_minimal() +
+  ggplot2::theme(
+    panel.grid.major.x = ggplot2::element_blank()
+  )
 
-
-
-
-
-
-
-
-
+boxplot_120
 
 
 #################

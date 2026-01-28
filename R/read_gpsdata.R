@@ -57,6 +57,16 @@ select_gps_cols_df_GMtag <- function(df, target_columns) {
       UTC_date = as.Date(UTC_datetime),
       UTC_time = hms::as_hms(UTC_datetime)
     ) |>
+    dplyr::mutate(
+      dplyr::across(
+        dplyr::any_of(c("Latitude", "Longitude", "hdop", "Altitude", "U_bat_mV", "Speed")), 
+        \(x) x |> 
+          as.character() |>              # Sécurité si déjà numérique
+          stringr::str_replace_all("\\.\\.", ".") |>
+          stringr::str_replace_all(",", ".") |>
+          stringr::str_trim() |>
+          as.numeric())
+      )|>
     dplyr::select(dplyr::any_of(target_columns))
 }
 
@@ -69,9 +79,20 @@ select_gps_cols_df_OTtag <- function(df, target_columns) {
     dplyr::mutate(
       device_id = as.character(device_id),
       U_bat_mV = U_bat_mV/1000,
+      UTC_datetime = lubridate::as_datetime(UTC_datetime, tz = "UTC"),
       UTC_date = as.Date(UTC_datetime),
-      UTC_time = hms::as_hms(UTC_datetime) 
-    ) |> 
+      UTC_time = hms::as_hms(UTC_datetime)
+    ) |>
+dplyr::mutate(
+      dplyr::across(
+        dplyr::any_of(c("Latitude", "Longitude", "hdop", "Altitude", "U_bat_mV", "Speed")), 
+        \(x) x |> 
+          as.character() |>              # Sécurité si déjà numérique
+          stringr::str_replace_all("\\.\\.", ".") |>
+          stringr::str_replace_all(",", ".") |>
+          stringr::str_trim() |>
+          as.numeric())
+      )|>
     dplyr::select(dplyr::any_of(target_columns))
 }
 
@@ -97,7 +118,7 @@ cleanyour_gpsdata_list <- function(data_list) {
             tz = "UTC"
           ),
           UTC_date = lubridate::ymd(UTC_date),
-          UTC_time = as.character(UTC_time), 
+          UTC_time = hms::as_hms(UTC_time), 
           device_id = as.factor(device_id)
         )
     })
