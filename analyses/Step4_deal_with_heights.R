@@ -13,20 +13,19 @@ httr::set_config(httr::config(timeout = 1800))
 emprise_sf <- sf::st_as_sf(sf::st_as_sfc(sf::st_bbox(data_sf)))
 
 message("Téléchargement du relief européen en cours...")
-raster_europe <- elevatr::get_elev_raster(emprise_sf, z =10, src = "aws", clip = "bbox")
-terra::writeRaster(terra::rast(raster_europe), "outputs/mon_relief_europe.tif", overwrite=TRUE)
+altitude_raster <- elevatr::get_elev_raster(emprise_sf, z = 9, src = "aws", clip = "bbox")
+terra::writeRaster(terra::rast(altitude_raster), "outputs/mon_relief_europe.tif", overwrite=TRUE)
 message("Fichier sauvegardé : mon_relief_europe.tif")
 
-# Charger le fichier depuis votre disque
-relief_local <- terra::rast("mon_relief_europe.tif")
+altitude_raster <- terra::rast("mon_relief_europe.tif")
 # Extraire l'altitude pour vos points
 points_vect <- terra::vect(data_sf)
 altitudes <- terra::extract(relief_local, points_vect)
 # Ajouter le résultat à votre dataframe
 data_sf$altitude <- altitudes[, 2]
 
-
 ################
+#Run by country
 data_small <- data_sf |> 
   dplyr::slice_sample(n = 1)
 # 1. Liste des pays présents
@@ -59,21 +58,3 @@ data_final_elev <- dplyr::bind_rows(results_list)
 # Renommer la colonne d'altitude générée par elevatr
 data_final_elev <- data_final_elev |> dplyr::rename(altitude_m = elevation)
 
-#########################
-
-fig <- plotly::plot_ly(final_data, 
-               x = ~longitude, 
-               y = ~latitude, 
-               z = ~elevation_m, 
-               color = ~elevation_m,
-               colors = c('#2e5f9bff', '#41b6c4', '#a1dab4', '#ffffcc'), # Terrain colors
-               type = 'scatter3d', 
-               mode = 'markers',
-               marker = list(size = 5, opacity = 0.8))
-
-fig <- fig %>% layout(title = "3D Point Distribution (Copernicus 30m)",
-                      scene = list(xaxis = list(title = 'Longitude'),
-                                   yaxis = list(title = 'Latitude'),
-                                   zaxis = list(title = 'Elevation (m)')))
-
-fig
