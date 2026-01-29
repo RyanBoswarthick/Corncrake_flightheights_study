@@ -1,4 +1,5 @@
-data<-read.csv("outputs/02_fulldataset_clean.csv")
+data<-read.csv("outputs/04_data_heights.csv")
+plot(data$Longitude, data$Latitude)
 
 data_flight_only <- data |>
   dplyr::arrange(device_id, UTC_datetime) |>
@@ -43,18 +44,18 @@ fig
 
 #######
 # En 3D avec un raster
-el_mat <- rayshader::raster_to_matrix(raster(relief_local))
+el_mat <- rayshader::raster_to_matrix(raster::raster(altitude_raster))
 
 # 2. Créer le rendu 3D du relief
 el_mat |>
- rayshader::sphere_shade(texture = "terrain") %>%
- rayshader::add_shadow(rayshader::ray_shade(el_mat, zscale = 30), 0.5) %>%
+ rayshader::sphere_shade(texture = "terrain") |>
+ rayshader::add_shadow(rayshader::ray_shade(el_mat, zscale = 30), 0.5) |>
  rayshader::plot_3d(el_mat, zscale = 30, fov = 0, theta = -45, phi = 45, windowsize = c(1000, 800))
 
 # 3. Superposer tes points GPS sur le relief 3D
 # (Nécessite de convertir les coordonnées en indices de matrice)
 rayshader::render_points(extent = extent(relief_local), 
-              lat = data_in_order$Latitude, 
-              long = data_in_order$Longitude, 
-              altitude = data_in_order$Altitude_m, 
+              lat = data_flight_only$Latitude, 
+              long = data_flight_only$Longitude, 
+              altitude = data_flight_only$Altitude_m, 
               zscale = 30, color = "red", size = 5)
