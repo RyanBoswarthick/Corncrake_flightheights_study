@@ -1,4 +1,4 @@
-altitude_raster <- terra::rast("C:/Users/rboswarthick/Desktop/PhD stuff/CEFE/International collaboration/Flight heights paper/elevation/elevation_elevatr_europe_9.tif")
+altitude_raster <- terra::rast("C:/Users/rboswarthick/Desktop/PhD stuff/CEFE/International collaboration/Flight heights paper/Covariables/elevation/elevation_elevatr_europe_9.tif")
 
 LIDAR <- terra::rast("C:/Users/rboswarthick/Downloads/LHD_FXX_0434_6736_MNT_O_0M50_LAMB93_IGN69.tif")
 
@@ -44,3 +44,33 @@ write.csv(
   row.names = FALSE
 )
 
+#############
+
+#########################
+data<-read.csv("outputs/04_data_heights.csv")
+
+data<-data |>
+  dplyr::filter(
+    speed_km_h<20,
+    diff_altitude<3000
+  )
+
+data_sf <- sf::st_as_sf(data, coords = c("Longitude", "Latitude"), crs = 4326)
+
+
+fig <- plotly::plot_ly(data, 
+               x = ~Longitude, 
+               y = ~Latitude, 
+               z = ~diff_altitude, 
+               color = ~diff_altitude,
+               colors = c('#2e5f9bff', '#41b6c4', '#a1dab4', '#ffffcc'), # Terrain colors
+               type = 'scatter3d', 
+               mode = 'markers',
+               marker = list(size = 5, opacity = 0.8))
+
+fig <- fig |> layout(title = "3D Point Distribution (Copernicus 30m)",
+                      scene = list(xaxis = list(title = 'Longitude'),
+                                   yaxis = list(title = 'Latitude'),
+                                   zaxis = list(title = 'Elevation (m)')))
+
+fig
