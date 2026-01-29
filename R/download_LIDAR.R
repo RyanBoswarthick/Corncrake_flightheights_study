@@ -57,7 +57,8 @@ terra::plot(lidar_fusion, main = "MNT Lidar HD Compilé")
 
 
 
-########
+################################################################################################################
+################################################################################################################
 
 # Charger les fichiers que l'on veut télécharger - tout stocké dans un .txt
 urls <- scan("C:/Users/rboswarthick/Desktop/PhD stuff/CEFE/International collaboration/Flight heights paper/Covariables/LIDAR", what = "character", quiet = TRUE)
