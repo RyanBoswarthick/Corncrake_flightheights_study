@@ -13,12 +13,17 @@ gps_clean <- gps |>
 
 code <- nimble::nimbleCode({
   for (i in 1:N) {
-    obs_alt[i] ~ dnorm(mean=true_alt[i],sd=sigma_obs)
+    # l'erreur GPS suit une loi normale
+    obs_alt[i] ~ dnorm(mean = true_alt[i], sd = sigma_obs)
+    
+    # La hauteur suit une log-normale
     true_alt[i] ~ dlnorm(meanlog = mu, sdlog = sigma)
   }
   
   # PRIORS
-  sigma_obs ~ dunif(0,30)
-  mu ~ dnorm(mean = 0, sd = 3)
-  sigma ~ dlnorm(meanlog = 0, sdlog = 1)
+  sigma_obs ~ dunif(0, 30) # Erreur type du GPS
+  
+  # On utilise des priors normaux pour les paramètres de la log-normale
+  mu ~ dnorm(0, sd = 10) 
+  sigma ~ dexp(1) # Un prior exponentiel est souvent plus stable pour un écart-type
 })

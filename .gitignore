@@ -21,3 +21,5 @@ README.html
 inst/doc
 analyses/Step5_add_real_heights.R
 outputs/elevation/elevation_elevatr_europe.tif
+
+*.tif
