@@ -1,61 +1,58 @@
-data<-read.csv("outputs/04_data_heights.csv")
-plot(data$Longitude, data$Latitude)
+data<-read.csv("outputs/02_fulldataset_clean.csv")
 
-data_flight_only <- data |>
+data_in_order <- data |>
   dplyr::arrange(device_id, UTC_datetime) |>
-  dplyr::group_by(device_id) |>
-  dplyr::filter(speed_km_h>20)
+  dplyr::group_by(device_id)
+
+data_sf <- sf::st_as_sf(data_in_order, coords = c("Longitude", "Latitude"), crs = 4326)
+mapview::mapview(data_sf, zcol="country", legend=FALSE)
+
+#############
+#Download elevatr map
+httr::set_config(httr::config(timeout = 1800))
+emprise_sf <- sf::st_as_sf(sf::st_as_sfc(sf::st_bbox(data_sf)))
+
+message("Téléchargement du relief européen en cours...")
+altitude_raster_10 <- elevatr::get_elev_raster(emprise_sf, z = 10, src = "aws", clip = "bbox")
+terra::writeRaster(terra::rast(altitude_raster_10), "outputs/elevation/elevation_elevatr_europe_10.tif", overwrite=TRUE)
+message("Fichier sauvegardé : mon_relief_europe.tif")
+
+########
+altitude_raster <- terra::rast("outputs/elevation/elevation_elevatr_europe.tif")
+
+# Plot
+terra::plot(altitude_raster, main = "Points sur Relief")
+terra::plot(points_vect, add = TRUE, col = "red", cex = 0.5, pch = 16)
+
+# Remplace toutes les valeurs sous l'eau par 0
+altitude_raster[altitude_raster < 0] <- 0
+5
+# Plot the raster
+terra::plot(altitude_raster, main = "Points sur Relief")
+terra::plot(points_vect, add = TRUE, col = "red", cex = 0.5, pch = 16)
+
+####
+# Extraire l'altitude pour vos points
+points_vect <- terra::vect(data_sf)
+altitudes <- terra::extract(altitude_raster, points_vect)
+# Ajouter le résultat à votre dataframe
+data_sf$altitude_raster <- altitudes[, 2]
+
+# 2. Création de la colonne de différence
+data_sf_validaltdata<-data_sf |>
+  dplyr::filter(Altitude_m<100 & Altitude_m >3000)
+data_sf$diff_altitude <-  data_sf$Altitude_m - data_sf$altitude_raster
+
+plot(data_sf$diff_altitude)
+
+data_df <- data_sf |>
+  dplyr::mutate(Longitude = sf::st_coordinates(geometry)[,1],
+                Latitude  = sf::st_coordinates(geometry)[,2]) |>
+  sf::st_drop_geometry()
 
 write.csv(
-  data_flight_only,
-  file = "outputs/05_final_flightdata_for_analysis.csv",
+  data_df,
+  file = "outputs/04_data_heights.csv",
   row.names = FALSE
 )
-#########################
 
-# Plus le chiffre est grand, plus les montagnes paraissent hautes
-vertical_expansion <- 0.5
-
-fig <- plotly::plot_ly(data_in_order, 
-               x = ~Longitude, 
-               y = ~Latitude, 
-               z = ~Altitude_m, 
-               color = ~Altitude_m,
-               # Palette plus naturelle (du bleu profond au marron/blanc des sommets)
-               type = 'scatter3d', 
-               mode = 'markers',
-               marker = list(size = 3, # Points un peu plus petits pour plus de finesse
-                             opacity = 0.9,
-                             line = list(width = 0))) # Pas de bordure pour un rendu plus net
-
-fig <- fig |> plotly::layout(
-  title = list(text = "Visualisation 3D du Relief : Estonie, France, Irlande, Écosse", y = 0.95),
-  scene = list(
-    xaxis = list(title = 'Longitude'),
-    yaxis = list(title = 'Latitude'),
-    zaxis = list(title = 'Altitude (m)'),
-    # ASPECT RATIO : On force le relief à être visible
-    aspectmode = "manual",
-    aspectratio = list(x = 1, y = 1, z = vertical_expansion) 
-  ),
-  margin = list(l=0, r=0, b=0, t=50) # On utilise tout l'espace disponible
-)
-fig
-
-#######
-# En 3D avec un raster
-el_mat <- rayshader::raster_to_matrix(raster::raster(altitude_raster))
-
-# 2. Créer le rendu 3D du relief
-el_mat |>
- rayshader::sphere_shade(texture = "terrain") |>
- rayshader::add_shadow(rayshader::ray_shade(el_mat, zscale = 30), 0.5) |>
- rayshader::plot_3d(el_mat, zscale = 30, fov = 0, theta = -45, phi = 45, windowsize = c(1000, 800))
-
-# 3. Superposer tes points GPS sur le relief 3D
-# (Nécessite de convertir les coordonnées en indices de matrice)
-rayshader::render_points(extent = extent(relief_local), 
-              lat = data_flight_only$Latitude, 
-              long = data_flight_only$Longitude, 
-              altitude = data_flight_only$Altitude_m, 
-              zscale = 30, color = "red", size = 5)
