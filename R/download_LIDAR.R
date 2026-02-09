@@ -111,3 +111,8 @@ if(length(files) > 0) {
 # Visualisation
 plot(rast(vrt_file))
 terra::plot(raster_final, main = "MNT Lidar HD Compilé")
+
+##########
+LIDAR <- terra::rast("C:/Users/rboswarthick/Downloads/LHD_FXX_0434_6736_MNT_O_0M50_LAMB93_IGN69.tif")
+terra::plot(LIDAR)
+##########

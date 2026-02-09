@@ -1,0 +1,23 @@
+{
+  // ========================================
+  // REWRAP : commentaires R à 80 caractères
+  // ========================================
+  "rewrap.wrappingColumn": 80,
+  "rewrap.doubleSentenceSpacing": false,
+  "rewrap.reformat": true,
+  "rewrap.wholeComment": true,
+
+  // ========================================
+  // REPÈRES VISUELS / LIGNES
+  // ========================================
+  "editor.rulers": [80],
+  "editor.wordWrap": "wordWrapColumn",
+  "editor.wordWrapColumn": 80,
+
+  // ========================================
+  // INDENTATION / TABS
+  // ========================================
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+
+}

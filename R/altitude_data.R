@@ -5,7 +5,6 @@ adjust_altitude_with_elevatr <- function(data) {
   points_sf <- sf::st_as_sf(data, coords = c("Longitude", "Latitude"), crs = 4326)
   
   # 2. Téléchargement automatique du DEM
-  # src = "gl3" correspond au Copernicus GLO-30 (global 30m)
   # z = 10 à 14 est généralement un bon compromis pour la précision
   message("Téléchargement du Copernicus DEM via elevatr...")
   
