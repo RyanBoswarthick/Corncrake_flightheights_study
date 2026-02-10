@@ -10,9 +10,9 @@ library(dplyr)
 # 1. PRÉPARATION DES DONNÉES
 # ============================================================================
 
-gps <- read.csv("outputs/04_data_heights.csv")
+data <- read.csv("outputs/04_data_heights.csv")
 
-gps <- gps |>
+gps <- data |>
   dplyr::filter(speed_km_h > 20)
 
 # Supposons que tu as une liste de hauteurs de vol (en mètres)
@@ -88,8 +88,8 @@ cMcmc <- compileNimble(mcmc, project = model)
 # 6. EXÉCUTION DU MCMC
 # ============================================================================
 
-niter <- 10000
-nburnin <- 2000
+niter <- 100000
+nburnin <- niter*0.5
 
 samples <- runMCMC(cMcmc, 
                    niter = niter,

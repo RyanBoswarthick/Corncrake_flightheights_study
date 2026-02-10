@@ -26,4 +26,11 @@ altitude_raster[altitude_raster < 0] <- 0
 terra::plot(altitude_raster, main = "Points sur Relief")
 
 ####################
-
+# TEST OTHER WAY
+####################
+altitude_raster_local <- elevatr::get_elev_raster(
+  locations = data_sf,  # Vos points sf
+  z = 10, 
+  src = "aws", 
+  clip = "locations"    # Découpe le raster au plus près des points
+)
