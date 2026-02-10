@@ -1,15 +1,11 @@
 altitude_raster <- terra::rast("C:/Users/rboswarthick/Desktop/PhD stuff/CEFE/International collaboration/Flight heights paper/Covariables/elevation/elevation_elevatr_europe_9.tif")
 
 # Remplace toutes les valeurs sous l'eau par 0
-altitude_raster[altitude_raster < -10] <- 0
 altitude_raster[altitude_raster < 0] <- 0
 altitude_raster_sl<-altitude_raster
 
 # Plot the raster
 terra::plot(altitude_raster_sl, main = "Relief Europe")
-
-mapview::mapview(altitude_raster_sl)
-
 ####
 data<-read.csv("outputs/02_fulldataset_clean.csv")|>
   dplyr::arrange(device_id, UTC_datetime) |>
@@ -30,7 +26,7 @@ data_sf$altitude_raster <- altitudes[, 2]
 # 2. Création de la colonne de différence
 data_sf$real_altitude <-  data_sf$Altitude_m - data_sf$altitude_raster
 
-plot(data_sf$real_altitude)
+summary(data_sf$real_altitude)
 
 data_df <- data_sf |>
   dplyr::mutate(Longitude = sf::st_coordinates(geometry)[,1],

@@ -107,3 +107,47 @@ boxplot_120 <- ggplot2::ggplot(data_2h |>
   )
 
 boxplot_120
+
+#############
+# Is my dataset correct ?
+## Speaking of heights
+
+stats_heights <- data |>
+  dplyr::summarise(
+    min_dt = min(Altitude_m, na.rm = TRUE),
+    median_dt = stats::median(Altitude_m, na.rm = TRUE),
+    mean_dt = mean(Altitude_m, na.rm = TRUE),
+    max_dt = max(Altitude_m, na.rm = TRUE),    
+    sd_dt = sd(Altitude_m, na.rm = TRUE),
+    .groups = "drop"
+  )
+stats_heights
+
+hist(data$Altitude_m, breaks=50)
+
+gps_negatif <- data |>
+  dplyr::filter(Altitude_m < 0)
+hist(gps_negatif$Altitude_m, breaks = 50)
+
+gps_extreme <- data |>
+  dplyr::filter(Altitude_m < 3000)
+hist(gps_extreme$Altitude_m, breaks = 50)
+#lots of points between -100 and 0 : small errors due to GPS imprecision
+
+#############
+## Speaking of speed
+
+stats_speed <- data |>
+  dplyr::summarise(
+    min_dt = min(speed_km_h, na.rm = TRUE),
+    median_dt = stats::median(speed_km_h, na.rm = TRUE),
+    mean_dt = mean(speed_km_h, na.rm = TRUE),
+    max_dt = max(speed_km_h, na.rm = TRUE),    
+    sd_dt = sd(speed_km_h, na.rm = TRUE),
+    .groups = "drop"
+  )
+stats_speed
+
+hist(data$speed_km_h, breaks=50)
+
+table(data$country, data$device_id)

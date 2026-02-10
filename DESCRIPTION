@@ -36,6 +36,10 @@ Imports:
     stringr,
     suncalc,
     utils,
-    webshot
+    webshot,
+    rnaturalearth,
+    transport,
+    MCMCvis
 Depends: 
     ggplot2
+

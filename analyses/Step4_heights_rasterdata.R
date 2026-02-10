@@ -24,3 +24,6 @@ terra::plot(altitude_raster, main = "Points sur Relief")
 #dire que la mer c'est alti = 0
 altitude_raster[altitude_raster < 0] <- 0
 terra::plot(altitude_raster, main = "Points sur Relief")
+
+####################
+
