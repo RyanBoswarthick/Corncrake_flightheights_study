@@ -7,27 +7,15 @@ data_in_order <- data |>
 data_sf <- sf::st_as_sf(data_in_order, coords = c("Longitude", "Latitude"), crs = 4326)
 
 #############
-#Download elevatr map
-httr::set_config(httr::config(timeout = 1800))
-emprise_sf <- sf::st_as_sf(sf::st_as_sfc(sf::st_bbox(data_sf)))
-
-message("Téléchargement du relief européen en cours...")
-altitude_raster_10 <- elevatr::get_elev_raster(emprise_sf, z = 10, src = "aws", clip = "bbox")
-terra::writeRaster(terra::rast(altitude_raster_10), "C:/Users/rboswarthick/Desktop/PhD stuff/CEFE/International collaboration/Flight heights paper/elevation/elevation_elevatr_europe_10.tif", overwrite=TRUE)
-message("Fichier sauvegardé : mon_relief_europe.tif")
-
-####################
-# More precise - download full raster for Europe at a finer scale
+# Download full raster for Europe at a finer scale
 ####################
 altitude_raster_local <- elevatr::get_elev_raster(
-  locations = data_sf,  # Vos points sf
+  locations = data_sf,
   z = 10, 
   src = "aws", 
-  clip = "locations"    # Découpe le raster au plus près des points
+  clip = "locations"
 )
-
 terra::plot(altitude_raster_local)
-
 terra::writeRaster(terra::rast(altitude_raster_local), "C:/Users/rboswarthick/Desktop/PhD stuff/CEFE/International collaboration/Flight heights paper/Covariables/elevation/elevation_elevatr_europe_10.tif", overwrite=TRUE)
 #################
 
@@ -115,6 +103,10 @@ data_df <- data_sf |>
   as.data.frame()
 
 write.csv(data_df, "outputs/04_dataset_with_elevation.csv", row.names = FALSE)
+
+
+
+
 
 ################################################################################
 # WORKFLOW ULTRA-OPTIMISÉ

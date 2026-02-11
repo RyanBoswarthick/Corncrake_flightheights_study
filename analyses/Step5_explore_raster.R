@@ -1,21 +1,28 @@
 
 #########################
 data<-read.csv("outputs/05_dataset_with_elevation.csv")
-
 data_sf <- sf::st_as_sf(data, coords = c("Longitude", "Latitude"), crs = 4326)
 
 summary(data_sf[c("altitude_raster_elevatr10", "altitude_raster_DEMEU")])
 
-# Explo rapide
-points_negatif <- data_sf |> 
-  dplyr::mutate(real_altitude_DEM_EU = as.numeric(unlist(real_altitude_DEM_EU))) |> 
-  dplyr::filter(real_altitude_DEM_EU < 0)
-points_negatif
 
-points_aberrants <- data_sf |> 
-  dplyr::mutate(real_altitude_DEM_EU = as.numeric(unlist(real_altitude_DEM_EU))) |> 
-  dplyr::filter(real_altitude_DEM_EU > 3000)
-points_aberrants
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ##########################
 # Ploter le tout
@@ -51,7 +58,7 @@ ggplot(plot_data, aes(x = hauteur_vol)) +
   ) +
   theme_minimal()
 
-data_flight<-data |>
+data_flight<-plot_data |>
   dplyr::filter(speed_km_h>15)
 
 # 2. Création de l'histogramme
