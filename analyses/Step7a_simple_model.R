@@ -10,13 +10,13 @@ library(dplyr)
 # 1. PRÉPARATION DES DONNÉES
 # ============================================================================
 
-data <- read.csv("outputs/04_data_heights.csv")
+data<-read.csv("outputs/05_dataset_with_elevation.csv")
 
 gps <- data |>
   dplyr::filter(speed_km_h > 20)
 
 # Supposons que tu as une liste de hauteurs de vol (en mètres)
-flight_heights <- gps$Altitude_m
+flight_heights <- gps$real_altitude_DEM_EU
 
 # Préparer les données pour NIMBLE
 data_list <- list(obs_alt = flight_heights)
@@ -78,7 +78,8 @@ cModel <- compileNimble(model)
 
 mcmcConf <- configureMCMC(model, 
                           monitors = c('mu', 'sigma', 'sigma_obs'),
-                          print = TRUE)
+                          print = TRUE,
+                          enableWAIC = TRUE)
 
 # Construire et compiler le MCMC
 mcmc <- buildMCMC(mcmcConf)
@@ -94,9 +95,10 @@ nburnin <- niter*0.5
 samples <- runMCMC(cMcmc, 
                    niter = niter,
                    nburnin = nburnin,
-                   nchains = 3,
-                   samplesAsCodaMCMC = TRUE)
-
+                   nchains = 5,
+                   samplesAsCodaMCMC = TRUE,
+                   WAIC = TRUE)
+print(samples$WAIC)
 # ============================================================================
 # 7. DIAGNOSTICS
 # ============================================================================
@@ -189,6 +191,7 @@ plot2 <- ggplot() +
 plot <- plot1 + plot2
 
 plot
+ggsave(filename = "figures/07_models/a_simple_model/flight_height_distributions.png",plot = plot)
 
 # ============================================================================
 # 11. DISTRIBUTION DES HAUTEURS AVEC ZONES DE RISQUE
@@ -223,7 +226,7 @@ mu_med <- median(mu_samples)
 sigma_med <- median(sigma_lognorm_samples)
 dens_vals <- dlnorm(x_vals, meanlog = mu_med, sdlog = sigma_med)
 
-pg_data <- data.frame(x = x_vals, y = dens_vals) %>%
+pg_data <- data.frame(x = x_vals, y = dens_vals) |>
   mutate(
     fill_group = case_when(
       x > 300 ~ "300_inf",
@@ -261,14 +264,15 @@ plot <- ggplot(pg_data, aes(x = x, y = y, fill = fill_group)) +
   geom_vline(xintercept = 20, linetype = "longdash", col = "grey") +
   geom_vline(xintercept = 200, linetype = "longdash", col = "grey") +
   geom_vline(xintercept = 300, linetype = "longdash") +
-  coord_flip(xlim = c(0, 1600)) +
+  coord_flip(xlim = c(0, 1700)) +
+  
   scale_fill_manual(
     name = "Proportion of points (95% CI)",
     values = c(
-      "0_20" = "#cc4778",
-      "20_200" = "#fde725",
-      "200_300" = "#ed7953",
-      "300_inf" = "#9c179e"
+      "0_20" = "#f39c38ff",
+      "20_200" = "#f96048ff",
+      "200_300" = "#457affff",
+      "300_inf" = "#a8f584ff"
     ),
     labels = c(
       "0_20" = label_0_20,
@@ -290,7 +294,8 @@ plot <- ggplot(pg_data, aes(x = x, y = y, fill = fill_group)) +
     legend.position = c(0.65, 0.4)
   )
 
-ggsave(filename = "figures/07/estimated_flight_height.png",plot = plot)
+print(plot)
+ggsave(filename = "figures/07_models/a_simple_model/estimated_flight_height.png",plot = plot)
 
 # Afficher le tableau des proportions
 cat("\n=== PROPORTIONS BY HEIGHT ZONE ===\n")

@@ -11,7 +11,7 @@ library(rnaturalearth)
 library(patchwork)
 
 # ── 1. Load data ─────────────────────────────────────────────────────────────
-gps <- read.csv("outputs/05_flightdata_with_elevation.csv")
+data<-read.csv("outputs/05_dataset_with_elevation.csv")
 
 str(gps)
 summary(gps$real_altitude_DEM_EU)

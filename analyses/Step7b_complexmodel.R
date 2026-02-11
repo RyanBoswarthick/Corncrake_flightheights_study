@@ -10,17 +10,17 @@ library(dplyr)
 # 1. PRÉPARATION DES DONNÉES
 # ============================================================================
 
-data_raw <- read.csv("outputs/04_data_heights.csv")
+data<-read.csv("outputs/05_dataset_with_elevation.csv")
 
-gps <- data_raw |>
-  dplyr::filter(speed_km_h > 15) |>
+gps <- data |>
+  dplyr::filter(speed_km_h > 20) |>
 
   dplyr::mutate(
-    Altitude_m = as.numeric(Altitude_m),
+    real_altitude_DEM_EU = as.numeric(real_altitude_DEM_EU),
     hdop = as.numeric(hdop),
     satcount = as.numeric(satcount)
   ) |>
-  dplyr::filter(!is.na(Altitude_m), !is.na(hdop), !is.na(satcount))
+  dplyr::filter(!is.na(real_altitude_DEM_EU), !is.na(hdop), !is.na(satcount))
 
 constants <- list(
   N = nrow(gps),
@@ -29,7 +29,7 @@ constants <- list(
 )
 
 # Définition des données observées
-data_list <- list(obs_alt = gps$Altitude_m)
+data_list <- list(obs_alt = gps$real_altitude_DEM_EU)
 
 # ============================================================================
 # 2. DÉFINITION DU MODÈLE
@@ -93,7 +93,16 @@ cMcmc <- compileNimble(mcmc, project = model)
 # 6. EXÉCUTION DU MCMC
 # ============================================================================
 
-samples <- runMCMC(cMcmc, niter = 50000, nburnin = 20000, nchains = 5, thin = 10, samplesAsCodaMCMC = TRUE)
+niter <- 100000
+nburnin <- niter*0.5
+
+samples <- runMCMC(cMcmc, 
+                   niter = niter,
+                   nburnin = nburnin,
+                   nchains = 5,
+                   samplesAsCodaMCMC = TRUE,
+                   WAIC = TRUE)
+print(samples$WAIC)
 
 # ============================================================================
 # 7. DIAGNOSTICS
@@ -181,6 +190,7 @@ plot2 <- ggplot() +
 
 plot_comparison <- plot1 + plot2
 print(plot_comparison)
+ggsave(filename = "figures/07_models/b_complex_model/flight_height_distribution.png",plot = plot_comparison)
 
 # ============================================================================
 # 11. DISTRIBUTION DES HAUTEURS AVEC ZONES DE RISQUE
@@ -197,15 +207,16 @@ prop_samples <- t(apply(samples_combined, 1, function(x) {
   c(p_0_20 = p0_20, p_20_200 = p20_200, p_200_300 = p200_300, p_300_inf = p300_inf)
 }))
 
+# Résumé des proportions (médiane et IC 95%)
 prop_summary <- apply(prop_samples, 2, function(x) {
   c(median = median(x), lower = quantile(x, 0.025), upper = quantile(x, 0.975))
 })
 
-# Préparation du graphique final
-x_vals <- seq(0, 1200, length.out = 1000)
+# Créer les données pour le graphique
+x_vals <- seq(0, 1700, length.out = 10000)
 dens_vals <- dlnorm(x_vals, meanlog = mu_med, sdlog = sigma_med)
 
-pg_data <- data.frame(x = x_vals, y = dens_vals) %>%
+pg_data_complex <- data.frame(x = x_vals, y = dens_vals) |>
   mutate(fill_group = case_when(
       x <= 20 ~ "0_20",
       x <= 200 ~ "20_200",
@@ -221,25 +232,69 @@ create_label <- function(tag, id) {
           prop_summary['upper.97.5%', id] * 100)
 }
 
-# Affichage graphique avec zones
-final_plot <- ggplot(pg_data, aes(x = x, y = y, fill = fill_group)) +
-  geom_area(alpha = 0.7) +
-  geom_line(color = "black", size = 0.3) +
-  geom_vline(xintercept = c(20, 200, 300), linetype = "dashed", alpha = 0.5) +
-  coord_flip() +
+# Créer les labels avec proportions
+label_0_20 <- sprintf("0-20 m = %.1f%% (%.1f-%.1f%%)",
+                      prop_summary['median', 'p_0_20'] * 100,
+                      prop_summary['lower.2.5%', 'p_0_20'] * 100,
+                      prop_summary['upper.97.5%', 'p_0_20'] * 100)
+
+label_20_200 <- sprintf("20-200 m = %.1f%% (%.1f-%.1f%%)",
+                        prop_summary['median', 'p_20_200'] * 100,
+                        prop_summary['lower.2.5%', 'p_20_200'] * 100,
+                        prop_summary['upper.97.5%', 'p_20_200'] * 100)
+
+label_200_300 <- sprintf("200-300 m = %.1f%% (%.1f-%.1f%%)",
+                         prop_summary['median', 'p_200_300'] * 100,
+                         prop_summary['lower.2.5%', 'p_200_300'] * 100,
+                         prop_summary['upper.97.5%', 'p_200_300'] * 100)
+
+label_300_inf <- sprintf(">300 m = %.1f%% (%.1f-%.1f%%)",
+                         prop_summary['median', 'p_300_inf'] * 100,
+                         prop_summary['lower.2.5%', 'p_300_inf'] * 100,
+                         prop_summary['upper.97.5%', 'p_300_inf'] * 100)
+
+
+# Affichage graphique avec zones Offshore vs Onshore
+final_plot <- ggplot(pg_data_complex, aes(x = x, y = y, fill = fill_group)) +
+  geom_area(alpha = 0.6) +
+  geom_line(color = "black") +
+  geom_vline(xintercept = 20, linetype = "longdash", col = "grey") +
+  geom_vline(xintercept = 200, linetype = "longdash", col = "grey") +
+  geom_vline(xintercept = 300, linetype = "longdash") +
+  coord_flip(xlim = c(0, 1700)) +
+  
   scale_fill_manual(
     name = "Flight Height Proportions (95% CI)",
-    values = c("0_20"="#cc4778", "20_200"="#fde725", "200_300"="#ed7953", "300_inf"="#9c179e"),
-    labels = c("0_20"=create_label("0-20m", "p_0_20"),
-               "20_200"=create_label("20-200m", "p_20_200"),
-               "200_300"=create_label("200-300m", "p_200_300"),
-               "300_inf"=create_label(">300m", "p_300_inf"))
+    values = c(
+      "0_20"    = "#f39c38ff", # Zone de garde
+      "20_200"  = "#f96048ff", # Danger Onshore + Bas Offshore
+      "200_300" = "#457affff", # Danger Offshore pur
+      "300_inf" = "#a8f584ff"  # Sécurité survol
+    ),
+    labels = c(
+      "0_20" = label_0_20,
+      "20_200" = label_20_200,
+      "200_300" = label_200_300,
+      "300_inf" = label_300_inf
+    )
   ) +
-  labs(title = "Final Estimated Height Distribution", x = "Height (m)", y = "Probability Density") +
-  theme_classic() + theme(legend.position = "right")
+  
+  labs(
+    title = "Estimated Flight Height Distribution",
+    subtitle = "Estimated distribution with risk zones",
+    x = "Height (m)", 
+    y = "Probability Density"
+  ) +
+  
+  theme_classic() + 
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position = c(0.65, 0.4)
+  )
 
 print(final_plot)
-ggsave(filename = "figures/07/b_complex_model/estimated_flight_height.png",plot = final_plot)
+ggsave(filename = "figures/07_models/b_complex_model/estimated_flight_height.png",plot = final_plot)
 
 # Export
 cat("\n=== FINAL PROPORTIONS (%) ===\n")
