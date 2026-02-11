@@ -32,4 +32,4 @@ map_obj@map <- map_obj@map |>
 # Affichage
 map_obj
 
-unique(data$device_id)Corncra
+unique(data$device_id)

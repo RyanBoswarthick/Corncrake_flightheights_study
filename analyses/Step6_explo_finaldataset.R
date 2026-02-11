@@ -11,10 +11,10 @@ library(rnaturalearth)
 library(patchwork)
 
 # ── 1. Load data ─────────────────────────────────────────────────────────────
-gps <- read.csv("data/05_final_flightdata_for_analysis.csv")
+gps <- read.csv("outputs/05_flightdata_with_elevation.csv")
 
 str(gps)
-summary(gps$Altitude_m)
+summary(gps$real_altitude_DEM_EU)
 
 # ── 2. Classify points as above land or above sea ───────────────────────────
 # Use Natural Earth land polygons to determine if each point is over land
@@ -54,14 +54,14 @@ map_plot <- ggplot() +
   labs(title = "GPS positions coloured by surface type")
 
 # ── 4. Overall altitude distribution ────────────────────────────────────────
-hist_all <- ggplot(gps, aes(x = Altitude_m)) +
+hist_all <- ggplot(gps, aes(x = real_altitude_DEM_EU)) +
   geom_histogram(bins = 80, fill = "steelblue", colour = "white", linewidth = 0.2) +
   theme_minimal(base_size = 11) +
   labs(title = "Distribution of flight altitudes (all data)",
        x = "Altitude (m)", y = "Count")
 
 # ── 5. Altitude distributions by surface type ───────────────────────────────
-hist_split <- ggplot(gps, aes(x = Altitude_m, fill = surface)) +
+hist_split <- ggplot(gps, aes(x = real_altitude_DEM_EU, fill = surface)) +
   geom_histogram(bins = 80, colour = "white", linewidth = 0.2, alpha = 0.75,
                  position = "identity") +
   scale_fill_manual(values = c("Above sea" = "#1f78b4", "Above land" = "#33a02c"),
@@ -78,9 +78,9 @@ summary_df <- gps %>%
   summarise(
     N      = n(),
     `%`    = round(n() / nrow(gps) * 100, 1),
-    Mean   = round(mean(Altitude_m, na.rm = TRUE), 1),
-    Median = round(median(Altitude_m, na.rm = TRUE), 1),
-    SD     = round(sd(Altitude_m, na.rm = TRUE), 1),
+    Mean   = round(mean(real_altitude_DEM_EU, na.rm = TRUE), 1),
+    Median = round(median(real_altitude_DEM_EU, na.rm = TRUE), 1),
+    SD     = round(sd(real_altitude_DEM_EU, na.rm = TRUE), 1),
     .groups = "drop"
   )
 
@@ -91,7 +91,7 @@ table_plot <- ggplot() +
   labs(title = "Summary by surface type") +
   theme(plot.title = element_text(size = 11, face = "bold", hjust = 0.5))
 
-box_split <- ggplot(gps, aes(x = surface, y = Altitude_m, fill = surface)) +
+box_split <- ggplot(gps, aes(x = surface, y = real_altitude_DEM_EU, fill = surface)) +
   geom_boxplot(alpha = 0.7, outlier.size = 0.5) +
   scale_fill_manual(values = c("Above sea" = "#1f78b4", "Above land" = "#33a02c"),
                     guide = "none") +
@@ -104,11 +104,11 @@ gps %>%
   group_by(surface) %>%
   summarise(
     n      = n(),
-    mean   = mean(Altitude_m, na.rm = TRUE),
-    median = median(Altitude_m, na.rm = TRUE),
-    sd     = sd(Altitude_m, na.rm = TRUE),
-    min    = min(Altitude_m, na.rm = TRUE),
-    max    = max(Altitude_m, na.rm = TRUE),
+    mean   = mean(real_altitude_DEM_EU, na.rm = TRUE),
+    median = median(real_altitude_DEM_EU, na.rm = TRUE),
+    sd     = sd(real_altitude_DEM_EU, na.rm = TRUE),
+    min    = min(real_altitude_DEM_EU, na.rm = TRUE),
+    max    = max(real_altitude_DEM_EU, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   print()
