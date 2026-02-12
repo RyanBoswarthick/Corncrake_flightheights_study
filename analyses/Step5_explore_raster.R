@@ -3,7 +3,7 @@
 data<-read.csv("outputs/05_dataset_with_elevation.csv")
 data_sf <- sf::st_as_sf(data, coords = c("Longitude", "Latitude"), crs = 4326)
 
-summary(data_sf[c("altitude_raster_elevatr10", "altitude_raster_DEMEU")])
+summary(data_sf[c("altitude_raster_elevatr9","altitude_raster_elevatr10", "altitude_raster_DEMEU")])
 
 
 
@@ -27,6 +27,8 @@ summary(data_sf[c("altitude_raster_elevatr10", "altitude_raster_DEMEU")])
 ##########################
 # Ploter le tout
 ##########################
+data<-read.csv("outputs/05_dataset_with_elevation.csv")
+data_sf <- sf::st_as_sf(data, coords = c("Longitude", "Latitude"), crs = 4326)
 
 library(ggplot2)
 library(dplyr)
@@ -47,14 +49,14 @@ ggplot(plot_data, aes(x = hauteur_vol)) +
   # binwidth = 5 (mètres) est souvent idéal pour du vol d'oiseau
   geom_histogram(binwidth = 5, fill = "steelblue", color = "white", alpha = 0.8) +
   # Ligne rouge pour marquer le niveau du sol (0m)
-  geom_vline(xintercept = 0, color = "red", linetype = "dashed", size = 1) +
+  geom_vline(xintercept = 0, color = "red", linetype = "dashed", size = 0.5) +
   # Zoom sur une plage réaliste (ex: -20m à 150m) pour ne pas être pollué par les aberrations
   coord_cartesian(xlim = c(-100, 300)) +
   labs(
-    title = "Distribution des hauteurs de vol (AGL)",
-    subtitle = "Source : EU-DEM | Ligne rouge = Niveau du sol",
-    x = "Hauteur au-dessus du sol (m)",
-    y = "Nombre de détections GPS"
+    title = "Corncrake altitude data distribution (full dataset)",
+    subtitle = "Source : EU-DEM | Red line - ground level",
+    x = "Height above ground level (m)",
+    y = "Number of fixes"
   ) +
   theme_minimal()
 
@@ -64,23 +66,23 @@ data_flight<-plot_data |>
 # 2. Création de l'histogramme
 ggplot(data_flight, aes(x = hauteur_vol)) +
   # binwidth = 5 (mètres) est souvent idéal pour du vol d'oiseau
-  geom_histogram(binwidth = 5, fill = "steelblue", color = "white", alpha = 0.8) +
+  geom_histogram(binwidth = 25, fill = "steelblue", color = "white", alpha = 0.8) +
   # Ligne rouge pour marquer le niveau du sol (0m)
-  geom_vline(xintercept = 0, color = "red", linetype = "dashed", size = 1) +
+  geom_vline(xintercept = 0, color = "red", linetype = "dashed", size = 0.5) +
   # Zoom sur une plage réaliste (ex: -20m à 150m) pour ne pas être pollué par les aberrations
-  coord_cartesian(xlim = c(-200, 800)) +
+  coord_cartesian(xlim = c(-200, 1000)) +
   labs(
-    title = "Distribution des hauteurs de vol (AGL)",
-    subtitle = "Source : EU-DEM | Ligne rouge = Niveau du sol",
-    x = "Hauteur au-dessus du sol (m)",
-    y = "Nombre de détections GPS"
+    title = "Corncrake height data in flight distribution",
+    subtitle = "Source : EU-DEM | Red line - ground level",
+    x = "Height above ground level (m)",
+    y = "Number of fixes"
   ) +
   theme_minimal()
 
 ###############
 data<-read.csv("outputs/05_flightdata_with_elevation.csv")
 
-data_flight<-data |>
+data<-data |>
   dplyr::filter(
     real_altitude_DEM_EU<3000,
     real_altitude_DEM_EU>-200
@@ -100,7 +102,7 @@ fig <- plotly::plot_ly(data,
                mode = 'markers',
                marker = list(size = 5, opacity = 0.8))
 
-fig <- fig |> plotly::layout(title = "3D Point Distribution (Copernicus 30m)",
+fig <- fig |> plotly::layout(title = "3D Fix Distribution",
                       scene = list(xaxis = list(title = 'Longitude'),
                                    yaxis = list(title = 'Latitude'),
                                    zaxis = list(title = 'Elevation (m)')))

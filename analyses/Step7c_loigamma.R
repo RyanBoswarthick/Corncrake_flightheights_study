@@ -74,16 +74,14 @@ cMcmc <- compileNimble(mcmc, project = model)
 # 5. EXÉCUTION
 # ============================================================================
 
-niter <- 10000
+niter <- 100000
 nburnin <- niter * 0.5
 
 samples <- runMCMC(cMcmc, 
                    niter = niter,
                    nburnin = nburnin,
                    nchains = 5,
-                   samplesAsCodaMCMC = TRUE,
-                   WAIC = TRUE)
-print(samples$WAIC)
+                   samplesAsCodaMCMC = TRUE)
 
 MCMCtrace(samples, pdf = FALSE)
 MCMCsummary(samples)
@@ -242,8 +240,13 @@ plot_final <- ggplot(pg_data, aes(x = x, y = y, fill = fill_group)) +
                "300_inf" = create_lab("p_300_inf", ">300m"))
   ) +
   labs(title = "Gamma Estimated Height Distribution",
-       subtitle = "Grey box indicates typical Onshore risk (20-150m)",
        x = "Height (m)", y = "Density") +
   theme_classic()
 
 print(plot_final)
+
+ggsave(filename = "figures/07_models/c_gamma/estimated_flight_height.png",plot = plot_final)
+
+# Export
+cat("\n=== FINAL PROPORTIONS (%) ===\n")
+print(round(prop_summary * 100, 1))

@@ -10,17 +10,20 @@ library(dplyr)
 # 1. PRÉPARATION DES DONNÉES
 # ============================================================================
 
-data<-read.csv("outputs/05_dataset_with_elevation.csv")
+data<-read.csv("outputs/05_flightdata_with_elevation.csv")
 
 gps <- data |>
+  dplyr::ungroup() |>
   dplyr::filter(speed_km_h > 20) |>
-
   dplyr::mutate(
     real_altitude_DEM_EU = as.numeric(real_altitude_DEM_EU),
     hdop = as.numeric(hdop),
     satcount = as.numeric(satcount)
   ) |>
   dplyr::filter(!is.na(real_altitude_DEM_EU), !is.na(hdop), !is.na(satcount))
+
+# Safety check: ensure we didn't filter out everything
+if (nrow(gps) == 0) stop("No rows remaining after filtering!")
 
 constants <- list(
   N = nrow(gps),
@@ -84,7 +87,12 @@ cModel <- compileNimble(model)
 # ============================================================================
 
 mcmcConf <- configureMCMC(model, 
-                          monitors = c('mu', 'sigma_lognorm', 'beta_0_obs', 'beta_1_obs', 'beta_2_obs'))
+                          monitors = c(
+                            'mu', 
+                            'sigma_lognorm', 
+                            'beta_0_obs', 
+                            'beta_1_obs', 
+                            'beta_2_obs'))
 
 mcmc <- buildMCMC(mcmcConf)
 cMcmc <- compileNimble(mcmc, project = model)
@@ -100,9 +108,7 @@ samples <- runMCMC(cMcmc,
                    niter = niter,
                    nburnin = nburnin,
                    nchains = 5,
-                   samplesAsCodaMCMC = TRUE,
-                   WAIC = TRUE)
-print(samples$WAIC)
+                   samplesAsCodaMCMC = TRUE)
 
 # ============================================================================
 # 7. DIAGNOSTICS

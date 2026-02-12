@@ -91,27 +91,7 @@ names(data)
 
 data_sf <- sf::st_as_sf(data, coords = c("Longitude", "Latitude"), crs = 4326)
 
-
-fig <- plotly::plot_ly(data, 
-               x = ~Longitude, 
-               y = ~Latitude, 
-               z = ~real_altitude_DEM_EU, 
-               color = ~country,
-               colors = c('#f90cdaff', '#c73305ff', '#0ce955ff', '#4907ffff'), # Terrain colors
-               type = 'scatter3d', 
-               mode = 'markers',
-               marker = list(size = 5, opacity = 0.8))
-
-fig <- fig |> plotly::layout(title = "3D Point Distribution (Copernicus 30m)",
-                      scene = list(xaxis = list(title = 'Longitude'),
-                                   yaxis = list(title = 'Latitude'),
-                                   zaxis = list(title = 'Elevation (m)')))
-
-fig
-
 #############
-library(plotly)
-library(terra) # Pour manipuler le raster
 
 # 1. Préparation du Raster (on le réduit un peu pour la fluidité du 3D)
 # Remplace 'ton_raster.tif' par ton fichier Copernicus
@@ -175,7 +155,7 @@ fig
 # Liste des pays présents dans tes données
 liste_pays <- unique(data$country)
 # Créer un dossier pour les sorties si il n'existe pas
-output_dir <- "./outputs/05/outputs_3D"
+output_dir <- "./figures/06_finaldata_exploration/outputs_3D"
 if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)
 }
@@ -264,7 +244,7 @@ for (pays in liste_pays) {
   # 5. Sauvegarde corrigée
   # On construit le chemin complet avant de sauvegarder
   file_name <- paste0("3D_Audit_", pays, ".html")
-  full_path <- file.path(getwd(), "outputs/05/outputs_3D", file_name)
+  full_path <- file.path(getwd(), "figures/06_finaldata_exploration/outputs_3D", file_name)
   
   htmlwidgets::saveWidget(p, file = full_path, selfcontained = TRUE)
 }
@@ -296,10 +276,8 @@ library(rnaturalearth)
 library(patchwork)
 
 # ── 1. Load data ─────────────────────────────────────────────────────────────
-gps<-read.csv("outputs/05_dataset_with_elevation.csv")
-gps<-gps |>
-  dplyr::filter(speed_km_h>20)
-str(gps)
+gps<-read.csv("outputs/05_flightdata_with_elevation.csv")
+
 summary(gps$real_altitude_DEM_EU)
 
 {

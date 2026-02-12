@@ -10,13 +10,13 @@ library(dplyr)
 # 1. PRÉPARATION DES DONNÉES
 # ============================================================================
 
-data<-read.csv("outputs/05_dataset_with_elevation.csv")
+data<-read.csv("outputs/05_flightdata_with_elevation.csv")
 
 gps <- data |>
   dplyr::filter(speed_km_h > 20)
 
 # Supposons que tu as une liste de hauteurs de vol (en mètres)
-flight_heights <- gps$real_altitude_DEM_EU
+flight_heights <- gps$Altitude_m
 
 # Préparer les données pour NIMBLE
 data_list <- list(obs_alt = flight_heights)
@@ -78,9 +78,7 @@ cModel <- compileNimble(model)
 
 mcmcConf <- configureMCMC(model, 
                           monitors = c('mu', 'sigma', 'sigma_obs'),
-                          print = TRUE,
-                          enableWAIC = TRUE)
-
+                          print = TRUE)
 # Construire et compiler le MCMC
 mcmc <- buildMCMC(mcmcConf)
 cMcmc <- compileNimble(mcmc, project = model)
@@ -96,9 +94,7 @@ samples <- runMCMC(cMcmc,
                    niter = niter,
                    nburnin = nburnin,
                    nchains = 5,
-                   samplesAsCodaMCMC = TRUE,
-                   WAIC = TRUE)
-print(samples$WAIC)
+                   samplesAsCodaMCMC = TRUE)
 # ============================================================================
 # 7. DIAGNOSTICS
 # ============================================================================
@@ -191,7 +187,7 @@ plot2 <- ggplot() +
 plot <- plot1 + plot2
 
 plot
-ggsave(filename = "figures/07_models/a_simple_model/flight_height_distributions.png",plot = plot)
+ggsave(filename = "figures/07_models/a_simple_model/flight_height_distributions_tag_no_alticorrection.png",plot = plot)
 
 # ============================================================================
 # 11. DISTRIBUTION DES HAUTEURS AVEC ZONES DE RISQUE
@@ -295,7 +291,7 @@ plot <- ggplot(pg_data, aes(x = x, y = y, fill = fill_group)) +
   )
 
 print(plot)
-ggsave(filename = "figures/07_models/a_simple_model/estimated_flight_height.png",plot = plot)
+ggsave(filename = "figures/07_models/a_simple_model/estimated_flight_height_no_alticorrection.png",plot = plot)
 
 # Afficher le tableau des proportions
 cat("\n=== PROPORTIONS BY HEIGHT ZONE ===\n")
