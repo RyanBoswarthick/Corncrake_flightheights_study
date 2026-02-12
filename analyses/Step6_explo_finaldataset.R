@@ -36,6 +36,10 @@ plot_data <- data_sf |>
   # On retire les valeurs manquantes pour éviter les avertissements
   dplyr::filter(!is.na(hauteur_vol))
 
+#########
+# DATA EN VOL ONLY
+#########
+
 # 2. Création de l'histogramme
 ggplot(plot_data, aes(x = hauteur_vol)) +
   # binwidth = 5 (mètres) est souvent idéal pour du vol d'oiseau
@@ -51,6 +55,10 @@ ggplot(plot_data, aes(x = hauteur_vol)) +
     y = "Nombre de détections GPS"
   ) +
   theme_minimal()
+
+#########
+# DATA EN VOL ONLY
+#########
 
 data_flight<-plot_data |>
   dplyr::filter(speed_km_h>20)
@@ -288,15 +296,17 @@ library(rnaturalearth)
 library(patchwork)
 
 # ── 1. Load data ─────────────────────────────────────────────────────────────
-data<-read.csv("outputs/05_dataset_with_elevation.csv")
-
+gps<-read.csv("outputs/05_dataset_with_elevation.csv")
+gps<-gps |>
+  dplyr::filter(speed_km_h>20)
 str(gps)
 summary(gps$real_altitude_DEM_EU)
 
+{
 # ── 2. Classify points as above land or above sea ───────────────────────────
 # Use Natural Earth land polygons to determine if each point is over land
-land <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>%
-  sf::st_union() %>%        # merge all countries into a single multipolygon
+land <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") |>
+  sf::st_union() |>        # merge all countries into a single multipolygon
   sf::st_make_valid()
 
 # Convert GPS points to sf
@@ -350,8 +360,8 @@ hist_split <- ggplot(gps, aes(x = real_altitude_DEM_EU, fill = surface)) +
 # Summary table as a plot (using gridExtra)
 library(gridExtra)
 
-summary_df <- gps %>%
-  group_by(Surface = surface) %>%
+summary_df <- gps |>
+  group_by(Surface = surface) |>
   summarise(
     N      = n(),
     `%`    = round(n() / nrow(gps) * 100, 1),
@@ -377,8 +387,8 @@ box_split <- ggplot(gps, aes(x = surface, y = real_altitude_DEM_EU, fill = surfa
        x = NULL, y = "Altitude (m)")
 
 # ── 6. Summary stats ────────────────────────────────────────────────────────
-gps %>%
-  group_by(surface) %>%
+gps |>
+  group_by(surface) |>
   summarise(
     n      = n(),
     mean   = mean(real_altitude_DEM_EU, na.rm = TRUE),
@@ -387,7 +397,7 @@ gps %>%
     min    = min(real_altitude_DEM_EU, na.rm = TRUE),
     max    = max(real_altitude_DEM_EU, na.rm = TRUE),
     .groups = "drop"
-  ) %>%
+  ) |>
   print()
 
 # ── 7. Compose & save figures ───────────────────────────────────────────────
@@ -396,8 +406,9 @@ p_combined <- (map_plot | hist_all) /
   plot_annotation(title = "Flight altitude exploration",
                   theme = theme(plot.title = element_text(size = 14, face = "bold")))
 
-dir.create("output", showWarnings = FALSE)
-ggsave("figures/flight_altitude_exploration.png", p_combined,
+dir.create("figures/06_finaldata_exploration", showWarnings = FALSE)
+ggsave("figures/06_finaldata_exploration/flight_altitude_exploration.png", p_combined,
        width = 16, height = 10, dpi = 200, bg = "white")
 
 message("Done — figure saved to output/flight_altitude_exploration.png")
+}
