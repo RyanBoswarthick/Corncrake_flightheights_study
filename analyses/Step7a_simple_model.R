@@ -10,13 +10,13 @@ library(dplyr)
 # 1. PRÉPARATION DES DONNÉES
 # ============================================================================
 
-data<-read.csv("outputs/05_flightdata_with_elevation.csv")
+data<-read.csv("outputs/06_data_largescale_flight.csv")
 
 gps <- data |>
   dplyr::filter(speed_km_h > 20)
 
 # Supposons que tu as une liste de hauteurs de vol (en mètres)
-flight_heights <- gps$Altitude_m
+flight_heights <- gps$real_altitude_DEM_EU
 
 # Préparer les données pour NIMBLE
 data_list <- list(obs_alt = flight_heights)
@@ -187,7 +187,7 @@ plot2 <- ggplot() +
 plot <- plot1 + plot2
 
 plot
-ggsave(filename = "figures/07_models/a_simple_model/flight_height_distributions_tag_no_alticorrection.png",plot = plot)
+ggsave(filename = "figures/07_models/a_simple_model/flight_height_distributions_DEM_EU_cleaned_dataset.png",plot = plot)
 
 # ============================================================================
 # 11. DISTRIBUTION DES HAUTEURS AVEC ZONES DE RISQUE
@@ -260,7 +260,7 @@ plot <- ggplot(pg_data, aes(x = x, y = y, fill = fill_group)) +
   geom_vline(xintercept = 20, linetype = "longdash", col = "grey") +
   geom_vline(xintercept = 200, linetype = "longdash", col = "grey") +
   geom_vline(xintercept = 300, linetype = "longdash") +
-  coord_flip(xlim = c(0, 1700)) +
+  coord_flip(xlim = c(0, 1000)) +
   
   scale_fill_manual(
     name = "Proportion of points (95% CI)",
@@ -291,7 +291,7 @@ plot <- ggplot(pg_data, aes(x = x, y = y, fill = fill_group)) +
   )
 
 print(plot)
-ggsave(filename = "figures/07_models/a_simple_model/estimated_flight_height_no_alticorrection.png",plot = plot)
+ggsave(filename = "figures/07_models/a_simple_model/estimated_flight_height_DEM_EU_cleaned_dataset.png",plot = plot)
 
 # Afficher le tableau des proportions
 cat("\n=== PROPORTIONS BY HEIGHT ZONE ===\n")

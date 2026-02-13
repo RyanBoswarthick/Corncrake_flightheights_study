@@ -53,12 +53,21 @@ plot_alldata
 #########
 # DATA EN VOL ONLY
 #########
+data_flight_only<-read.csv("outputs/06_data_largescale_flight.csv")
+data_flight_only_sf <- sf::st_as_sf(data_flight_only, coords = c("Longitude", "Latitude"), crs = 4326)
 
-data_flight<-plot_data |>
-  dplyr::filter(speed_km_h>20)
+plot_data_flight <- data_flight_only_sf |>
+  sf::st_drop_geometry() |> 
+  dplyr::mutate(
+    # On "aplatit" la colonne au cas où c'est une liste et on force en numeric
+    hauteur_vol = as.numeric(unlist(real_altitude_DEM_EU))
+  ) |> 
+  # On retire les valeurs manquantes pour éviter les avertissements
+  dplyr::filter(!is.na(hauteur_vol))
 
 # 2. Création de l'histogramme
-plot_flight<-ggplot(data_flight, aes(x = hauteur_vol)) +
+library(ggplot2)
+plot_flight<-ggplot(plot_data_flight, aes(x = hauteur_vol)) +
   # binwidth = 5 (mètres) est souvent idéal pour du vol d'oiseau
   geom_histogram(binwidth = 10, fill = "steelblue", color = "white", alpha = 0.8) +
   # Ligne rouge pour marquer le niveau du sol (0m)
@@ -67,15 +76,15 @@ plot_flight<-ggplot(data_flight, aes(x = hauteur_vol)) +
   coord_cartesian(xlim = c(-200, 1000)) +
   labs(
     title = "Distribution des hauteurs de vol",
-    subtitle = "Source : EU-DEM | Ligne rouge = ground level",
-    x = "Hauteur de vol (m)",
+    subtitle = "Source : EU-DEM | Red line = ground level",
+    x = "Flight height (m)",
     y = "Number of fixes"
   ) +
   theme_minimal()
 
 plot_flight
 
-ggsave("figures/06_finaldata_exploration/flight_altitude_exploration.png", plot_flight, width = 16, height = 10, dpi = 200, bg = "white")
+ggsave("figures/06_finaldata_exploration/flight_altitude_distribution_cleaned_dataset.png", plot_flight, width = 16, height = 10, dpi = 200, bg = "white")
 
 ###############
 data<-read.csv("outputs/05_flightdata_with_elevation.csv")
