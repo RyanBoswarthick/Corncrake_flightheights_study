@@ -134,6 +134,18 @@ gps_extreme <- data |>
 hist(gps_extreme$Altitude_m, breaks = 50)
 #lots of points between -100 and 0 : small errors due to GPS imprecision
 
+# 1. Nettoyage et préparation des données
+# On s'assure que les colonnes sont bien au format numérique
+plot_data <- data |>
+  sf::st_drop_geometry() |> 
+  dplyr::mutate(
+    # On "aplatit" la colonne au cas où c'est une liste et on force en numeric
+    hauteur_vol = as.numeric(unlist(real_altitude_DEM_EU))
+  ) |> 
+  # On retire les valeurs manquantes pour éviter les avertissements
+  dplyr::filter(!is.na(hauteur_vol))
+
+
 #############
 ## Speaking of speed
 

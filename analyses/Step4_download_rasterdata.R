@@ -66,7 +66,7 @@ data_sf$real_altitude_elevatr10 <-  data_sf$Altitude_m - data_sf$altitude_raster
 # WORKFLOW SUR GROSSE COUCHE RASTER DEM EU
 ##########################
 
-alti_raster_DEM_EU <- terra::rast("C:/Users/rboswarthick/Downloads/eudem_dem_3035_europe.tif")
+alti_raster_DEM_EU <- terra::rast("C:/Users/rboswarthick/Desktop/PhD stuff/CEFE/International collaboration/Flight heights paper/Covariables/elevation/eudem_dem_3035_europe.tif")
 
 terra::plot(alti_raster_DEM_EU, main = "Relief Europe")
 

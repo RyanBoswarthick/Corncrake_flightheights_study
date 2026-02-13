@@ -1,4 +1,10 @@
 ################# 
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(sf)
+library(rnaturalearth)
+library(patchwork)
 
 #########################
 data<-read.csv("outputs/05_dataset_with_elevation.csv")
@@ -7,23 +13,10 @@ data_sf <- sf::st_as_sf(data, coords = c("Longitude", "Latitude"), crs = 4326)
 
 summary(data_sf[c("altitude_raster_elevatr10", "altitude_raster_DEMEU")])
 
-# Explo rapide
-points_negatif <- data_sf |> 
-  dplyr::mutate(real_altitude_DEM_EU = as.numeric(unlist(real_altitude_DEM_EU))) |> 
-  dplyr::filter(real_altitude_DEM_EU < 0)
-points_negatif
-
-points_aberrants <- data_sf |> 
-  dplyr::mutate(real_altitude_DEM_EU = as.numeric(unlist(real_altitude_DEM_EU))) |> 
-  dplyr::filter(real_altitude_DEM_EU > 3000)
-points_aberrants
-
+unique(data$device_id)
 ##########################
 # Ploter le tout
 ##########################
-
-library(ggplot2)
-library(dplyr)
 
 # 1. Nettoyage et préparation des données
 # On s'assure que les colonnes sont bien au format numérique
@@ -37,24 +30,25 @@ plot_data <- data_sf |>
   dplyr::filter(!is.na(hauteur_vol))
 
 #########
-# DATA EN VOL ONLY
+# FULL DATA
 #########
 
 # 2. Création de l'histogramme
-ggplot(plot_data, aes(x = hauteur_vol)) +
+plot_alldata<-ggplot(plot_data, aes(x = hauteur_vol)) +
   # binwidth = 5 (mètres) est souvent idéal pour du vol d'oiseau
   geom_histogram(binwidth = 5, fill = "steelblue", color = "white", alpha = 0.8) +
   # Ligne rouge pour marquer le niveau du sol (0m)
   geom_vline(xintercept = 0, color = "red", linetype = "dashed", size = 1) +
   # Zoom sur une plage réaliste (ex: -20m à 150m) pour ne pas être pollué par les aberrations
-  coord_cartesian(xlim = c(-100, 300)) +
+  coord_cartesian(xlim = c(-100, 200)) +
   labs(
-    title = "Distribution des hauteurs de vol (AGL)",
-    subtitle = "Source : EU-DEM | Ligne rouge = Niveau du sol",
-    x = "Hauteur au-dessus du sol (m)",
-    y = "Nombre de détections GPS"
+    title = "Distribution des hauteurs des Crex",
+    subtitle = "Source : EU-DEM | Ligne rouge = ground level",
+    x = "Hauteur de vol (m)",
+    y = "Number of fixes"
   ) +
   theme_minimal()
+plot_alldata
 
 #########
 # DATA EN VOL ONLY
@@ -64,33 +58,40 @@ data_flight<-plot_data |>
   dplyr::filter(speed_km_h>20)
 
 # 2. Création de l'histogramme
-ggplot(data_flight, aes(x = hauteur_vol)) +
+plot_flight<-ggplot(data_flight, aes(x = hauteur_vol)) +
   # binwidth = 5 (mètres) est souvent idéal pour du vol d'oiseau
-  geom_histogram(binwidth = 5, fill = "steelblue", color = "white", alpha = 0.8) +
+  geom_histogram(binwidth = 10, fill = "steelblue", color = "white", alpha = 0.8) +
   # Ligne rouge pour marquer le niveau du sol (0m)
   geom_vline(xintercept = 0, color = "red", linetype = "dashed", size = 1) +
   # Zoom sur une plage réaliste (ex: -20m à 150m) pour ne pas être pollué par les aberrations
-  coord_cartesian(xlim = c(-200, 800)) +
+  coord_cartesian(xlim = c(-200, 1000)) +
   labs(
-    title = "Distribution des hauteurs de vol (AGL)",
-    subtitle = "Source : EU-DEM | Ligne rouge = Niveau du sol",
-    x = "Hauteur au-dessus du sol (m)",
-    y = "Nombre de détections GPS"
+    title = "Distribution des hauteurs de vol",
+    subtitle = "Source : EU-DEM | Ligne rouge = ground level",
+    x = "Hauteur de vol (m)",
+    y = "Number of fixes"
   ) +
   theme_minimal()
+
+plot_flight
+
+ggsave("figures/06_finaldata_exploration/flight_altitude_exploration.png", plot_flight, width = 16, height = 10, dpi = 200, bg = "white")
 
 ###############
 data<-read.csv("outputs/05_flightdata_with_elevation.csv")
 
-data_flight<-data |>
-  dplyr::filter(
-    real_altitude_DEM_EU<3000,
-    real_altitude_DEM_EU>-200
-  )
+# Explo rapide
+points_negatif <- data |> 
+  dplyr::mutate(real_altitude_DEM_EU = as.numeric(unlist(real_altitude_DEM_EU))) |> 
+  dplyr::filter(real_altitude_DEM_EU < 0)
+points_negatif
+
+points_aberrants <- data |> 
+  dplyr::mutate(real_altitude_DEM_EU = as.numeric(unlist(real_altitude_DEM_EU))) |> 
+  dplyr::filter(real_altitude_DEM_EU > 3000)
+points_aberrants
+
 names(data)
-
-data_sf <- sf::st_as_sf(data, coords = c("Longitude", "Latitude"), crs = 4326)
-
 #############
 
 # 1. Préparation du Raster (on le réduit un peu pour la fluidité du 3D)
@@ -98,8 +99,10 @@ data_sf <- sf::st_as_sf(data, coords = c("Longitude", "Latitude"), crs = 4326)
 raster_elevatr9 <- terra::rast("C:/Users/rboswarthick/Desktop/PhD stuff/CEFE/International collaboration/Flight heights paper/Covariables/elevation/elevation_elevatr_europe_9.tif")
 raster_elevatr9[raster_elevatr9 < 0] <- 0 #sealevel is alti = 0
 
-
 raster_elevatr9_small <- terra::spatSample(raster_elevatr9, method="regular", size=10000, as.raster=TRUE)
+
+raster_elevatr9_small<-raster_DEM_EU_small
+
 z_matrix <- terra::as.matrix(raster_elevatr9_small, wide = TRUE)
 z_matrix <- z_matrix[nrow(z_matrix):1, ]
 
@@ -155,7 +158,7 @@ fig
 # Liste des pays présents dans tes données
 liste_pays <- unique(data$country)
 # Créer un dossier pour les sorties si il n'existe pas
-output_dir <- "./figures/06_finaldata_exploration/outputs_3D"
+output_dir <- "./figures/06_finaldata_exploration/outputs_3D_test_DEM"
 if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)
 }
@@ -184,7 +187,7 @@ for (pays in liste_pays) {
                           lat_range[1] - margin_lat, lat_range[2] + margin_lat))
   # 3. Découpe chirurgicale du Raster
   # On crop le raster exactement sur la zone de vol
-  r_pays <- try(terra::crop(raster_elevatr9, ext_pays), silent = TRUE)
+  r_pays <- try(terra::crop(raster_elevatr9_small, ext_pays), silent = TRUE)
   if(inherits(r_pays, "try-error")) next
   
   # On garde une résolution de grille fixe (ex: 80x80) pour que le maillage 
@@ -258,28 +261,45 @@ all_plots[["SCOT"]]
 
 
 
-
-
-
-
-
-
 #######################
 # Plot more your data
+#######################
 
 ## ── Plot GPS data on a map & explore flight altitude distributions ──────────
 ## Help from Victor — February 2026
 
-library(tidyverse)
-library(sf)
-library(rnaturalearth)
-library(patchwork)
-
 # ── 1. Load data ─────────────────────────────────────────────────────────────
 gps<-read.csv("outputs/05_flightdata_with_elevation.csv")
-
+gps <- gps |>
+  dplyr::arrange(device_id, UTC_datetime) |>
+  dplyr::group_by(device_id)
 summary(gps$real_altitude_DEM_EU)
 
+data_sf <- sf::st_as_sf(gps, coords = c("Longitude", "Latitude"), crs = 4326)
+
+data_sf <- data_sf |>
+  dplyr::arrange(device_id, UTC_datetime) |>
+  dplyr::group_by(device_id)
+tracks_sf <- data_sf |>
+  dplyr::arrange(device_id, UTC_datetime) |>
+  dplyr::group_by(device_id) |>
+  dplyr::summarise(do_union = FALSE) |>
+  sf::st_cast("LINESTRING")
+
+map_obj <- mapview::mapview(data_sf, zcol = "country", legend = FALSE, layer.name = "Points") +
+  mapview::mapview(tracks_sf, zcol = "device_id", lwd = 2, legend = FALSE, layer.name = "Tracks")
+
+# Ajouter contrôle interactif pour afficher/cacher Points et Tracks
+map_obj@map <- map_obj@map |>
+  leaflet::addLayersControl(
+    baseGroups = c("OpenStreetMap","Esri.WorldImagery"),
+    overlayGroups = c("Points","Tracks"),
+    options = leaflet::layersControlOptions(collapsed = FALSE)
+  )
+# Affichage
+map_obj
+
+gps$alti_crex<-gps$real_altitude_DEM_EU
 {
 # ── 2. Classify points as above land or above sea ───────────────────────────
 # Use Natural Earth land polygons to determine if each point is over land
@@ -319,14 +339,14 @@ map_plot <- ggplot() +
   labs(title = "GPS positions coloured by surface type")
 
 # ── 4. Overall altitude distribution ────────────────────────────────────────
-hist_all <- ggplot(gps, aes(x = real_altitude_DEM_EU)) +
+hist_all <- ggplot(gps, aes(x = alti_crex)) +
   geom_histogram(bins = 80, fill = "steelblue", colour = "white", linewidth = 0.2) +
   theme_minimal(base_size = 11) +
   labs(title = "Distribution of flight altitudes (all data)",
        x = "Altitude (m)", y = "Count")
 
 # ── 5. Altitude distributions by surface type ───────────────────────────────
-hist_split <- ggplot(gps, aes(x = real_altitude_DEM_EU, fill = surface)) +
+hist_split <- ggplot(gps, aes(x = alti_crex, fill = surface)) +
   geom_histogram(bins = 80, colour = "white", linewidth = 0.2, alpha = 0.75,
                  position = "identity") +
   scale_fill_manual(values = c("Above sea" = "#1f78b4", "Above land" = "#33a02c"),
@@ -343,9 +363,9 @@ summary_df <- gps |>
   summarise(
     N      = n(),
     `%`    = round(n() / nrow(gps) * 100, 1),
-    Mean   = round(mean(real_altitude_DEM_EU, na.rm = TRUE), 1),
-    Median = round(median(real_altitude_DEM_EU, na.rm = TRUE), 1),
-    SD     = round(sd(real_altitude_DEM_EU, na.rm = TRUE), 1),
+    Mean   = round(mean(alti_crex, na.rm = TRUE), 1),
+    Median = round(median(alti_crex, na.rm = TRUE), 1),
+    SD     = round(sd(alti_crex, na.rm = TRUE), 1),
     .groups = "drop"
   )
 
@@ -356,7 +376,7 @@ table_plot <- ggplot() +
   labs(title = "Summary by surface type") +
   theme(plot.title = element_text(size = 11, face = "bold", hjust = 0.5))
 
-box_split <- ggplot(gps, aes(x = surface, y = real_altitude_DEM_EU, fill = surface)) +
+box_split <- ggplot(gps, aes(x = surface, y = alti_crex, fill = surface)) +
   geom_boxplot(alpha = 0.7, outlier.size = 0.5) +
   scale_fill_manual(values = c("Above sea" = "#1f78b4", "Above land" = "#33a02c"),
                     guide = "none") +
@@ -369,11 +389,11 @@ gps |>
   group_by(surface) |>
   summarise(
     n      = n(),
-    mean   = mean(real_altitude_DEM_EU, na.rm = TRUE),
-    median = median(real_altitude_DEM_EU, na.rm = TRUE),
-    sd     = sd(real_altitude_DEM_EU, na.rm = TRUE),
-    min    = min(real_altitude_DEM_EU, na.rm = TRUE),
-    max    = max(real_altitude_DEM_EU, na.rm = TRUE),
+    mean   = mean(alti_crex, na.rm = TRUE),
+    median = median(alti_crex, na.rm = TRUE),
+    sd     = sd(alti_crex, na.rm = TRUE),
+    min    = min(alti_crex, na.rm = TRUE),
+    max    = max(alti_crex, na.rm = TRUE),
     .groups = "drop"
   ) |>
   print()
@@ -385,6 +405,7 @@ p_combined <- (map_plot | hist_all) /
                   theme = theme(plot.title = element_text(size = 14, face = "bold")))
 
 dir.create("figures/06_finaldata_exploration", showWarnings = FALSE)
+print(p_combined)
 ggsave("figures/06_finaldata_exploration/flight_altitude_exploration.png", p_combined,
        width = 16, height = 10, dpi = 200, bg = "white")
 
