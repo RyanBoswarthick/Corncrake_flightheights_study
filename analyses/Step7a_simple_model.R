@@ -159,7 +159,7 @@ plot1 <- ggplot() +
        title = "Sim true alt") +
   scale_fill_manual(values = colors) +
   theme_minimal() +
-  coord_flip(xlim = c(-200, 2000)) + 
+  coord_flip(xlim = c(-200, 1000)) + 
   theme(legend.position = "none", axis.text.x = element_blank())
 
 EWD <- wasserstein1d(lognorm_data$alt_obs, gps$Altitude_m)
@@ -181,7 +181,7 @@ plot2 <- ggplot() +
        subtitle = paste("Similarity:",EWD)) +
   scale_fill_manual(values = colors) +
   theme_minimal() +
-  coord_flip(xlim = c(-200, 2000)) + 
+  coord_flip(xlim = c(-200, 1000)) + 
   theme(legend.position = "none", axis.text.x = element_blank())
 
 plot <- plot1 + plot2
@@ -197,11 +197,9 @@ ggsave(filename = "figures/07_models/a_simple_model/flight_height_distributions_
 calc_proportions <- function(mu, sigma) {
   p_0_20 <- plnorm(20, meanlog = mu, sdlog = sigma)
   p_20_200 <- plnorm(200, meanlog = mu, sdlog = sigma) - p_0_20
-  p_200_300 <- plnorm(300, meanlog = mu, sdlog = sigma) - plnorm(200, meanlog = mu, sdlog = sigma)
-  p_300_inf <- 1 - plnorm(300, meanlog = mu, sdlog = sigma)
+  p_200_inf <- 1 - plnorm(200, meanlog = mu, sdlog = sigma)
   
-  c(p_0_20 = p_0_20, p_20_200 = p_20_200, 
-    p_200_300 = p_200_300, p_300_inf = p_300_inf)
+  c(p_0_20 = p_0_20, p_20_200 = p_20_200, p_200_inf = p_200_inf)
 }
 
 # Calculer pour chaque échantillon MCMC
@@ -217,7 +215,7 @@ prop_summary <- apply(prop_samples, 2, function(x) {
 })
 
 # Créer les données pour le graphique
-x_vals <- seq(0, 1700, length.out = 10000)
+x_vals <- seq(0, 1000, length.out = 10000)
 mu_med <- median(mu_samples)
 sigma_med <- median(sigma_lognorm_samples)
 dens_vals <- dlnorm(x_vals, meanlog = mu_med, sdlog = sigma_med)
@@ -225,10 +223,9 @@ dens_vals <- dlnorm(x_vals, meanlog = mu_med, sdlog = sigma_med)
 pg_data <- data.frame(x = x_vals, y = dens_vals) |>
   mutate(
     fill_group = case_when(
-      x > 300 ~ "300_inf",
+      x > 200 ~ "200_inf",
       x <= 20 ~ "0_20",
       x > 20 & x <= 200 ~ "20_200",
-      x > 200 & x <= 300 ~ "200_300"
     )
   )
 
@@ -243,15 +240,10 @@ label_20_200 <- sprintf("20-200 m = %.1f%% (%.1f-%.1f%%)",
                         prop_summary['lower.2.5%', 'p_20_200'] * 100,
                         prop_summary['upper.97.5%', 'p_20_200'] * 100)
 
-label_200_300 <- sprintf("200-300 m = %.1f%% (%.1f-%.1f%%)",
-                         prop_summary['median', 'p_200_300'] * 100,
-                         prop_summary['lower.2.5%', 'p_200_300'] * 100,
-                         prop_summary['upper.97.5%', 'p_200_300'] * 100)
-
-label_300_inf <- sprintf(">300 m = %.1f%% (%.1f-%.1f%%)",
-                         prop_summary['median', 'p_300_inf'] * 100,
-                         prop_summary['lower.2.5%', 'p_300_inf'] * 100,
-                         prop_summary['upper.97.5%', 'p_300_inf'] * 100)
+label_200_inf <- sprintf(">200 m = %.1f%% (%.1f-%.1f%%)",
+                         prop_summary['median', 'p_200_inf'] * 100,
+                         prop_summary['lower.2.5%', 'p_200_inf'] * 100,
+                         prop_summary['upper.97.5%', 'p_200_inf'] * 100)
 
 # Graphique
 plot <- ggplot(pg_data, aes(x = x, y = y, fill = fill_group)) +
@@ -259,7 +251,6 @@ plot <- ggplot(pg_data, aes(x = x, y = y, fill = fill_group)) +
   geom_line(color = "black") +
   geom_vline(xintercept = 20, linetype = "longdash", col = "grey") +
   geom_vline(xintercept = 200, linetype = "longdash", col = "grey") +
-  geom_vline(xintercept = 300, linetype = "longdash") +
   coord_flip(xlim = c(0, 1000)) +
   
   scale_fill_manual(
@@ -267,14 +258,12 @@ plot <- ggplot(pg_data, aes(x = x, y = y, fill = fill_group)) +
     values = c(
       "0_20" = "#f39c38ff",
       "20_200" = "#f96048ff",
-      "200_300" = "#457affff",
-      "300_inf" = "#a8f584ff"
+      "200_inf" = "#a8f584ff"
     ),
     labels = c(
       "0_20" = label_0_20,
       "20_200" = label_20_200,
-      "200_300" = label_200_300,
-      "300_inf" = label_300_inf
+      "200_inf" = label_200_inf
     )
   ) +
   labs(

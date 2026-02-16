@@ -10,98 +10,91 @@ library(dplyr)
 # 1. PRÉPARATION DES DONNÉES
 # ============================================================================
 
-data<-read.csv("outputs/05_flightdata_with_elevation.csv")
+gps_raw <- readr::read_csv("outputs/06_data_largescale_flight.csv") |>
+  dplyr::filter(speed_km_h > 20)
 
-gps <- data |>
-  dplyr::ungroup() |>
-  dplyr::filter(speed_km_h > 20) |>
+gps <- gps_raw |>
   dplyr::mutate(
-    real_altitude_DEM_EU = as.numeric(real_altitude_DEM_EU),
-    hdop = as.numeric(hdop),
-    satcount = as.numeric(satcount)
-  ) |>
-  dplyr::filter(!is.na(real_altitude_DEM_EU), !is.na(hdop), !is.na(satcount))
+    # Standardisation des variables de qualité GPS
+    hdop_s = as.numeric(scale(hdop)),
+    nsat_s = as.numeric(scale(satcount))
+  )
 
-# Safety check: ensure we didn't filter out everything
-if (nrow(gps) == 0) stop("No rows remaining after filtering!")
-
-constants <- list(
-  N = nrow(gps),
-  hdop = gps$hdop,
-  nsat = gps$satcount
+# Préparer les listes pour NIMBLE
+data_list <- list(
+  obs_alt = gps$real_altitude_DEM_EU,
+  hdop = gps$hdop_s,
+  nsat = gps$nsat_s
 )
 
-# Définition des données observées
-data_list <- list(obs_alt = gps$real_altitude_DEM_EU)
+constants_list <- list(
+  N = nrow(gps)
+)
 
 # ============================================================================
-# 2. DÉFINITION DU MODÈLE
+# 2. DÉFINITION DU MODÈLE (QUALITÉ GPS UNIQUEMENT)
 # ============================================================================
 
-code <- nimbleCode({
-    for (i in 1:N) {
-      # 1. Processus d'Observation (L'erreur sigma_obs dépend de la qualité GPS)
-      obs_alt[i] ~ dnorm(mean = true_alt[i], sd = sigma_obs[i])
-      log(sigma_obs[i]) <- beta_0_obs + beta_1_obs * hdop[i] + beta_2_obs * nsat[i]
-
-      # 2. Processus Biologique (La vraie altitude estimée)
-      # Doit être strictement positif
-      true_alt[i] ~ dlnorm(meanlog = mu, sdlog = sigma_lognorm)
-    }
-
-    # PRIORS pour la distribution des hauteurs
-    mu ~ dnorm(mean = 0, sd = 3)
-    sigma_lognorm ~ dlnorm(meanlog = 0, sdlog = 1)
-
-    # PRIORS pour les paramètres d'influence GPS
-    beta_0_obs ~ dnorm(mean = 0, sd = 2)   # Erreur de base
-    beta_1_obs ~ dnorm(mean = 0, sd = 0.5)   # Poids du HDOP (attendu > 0)
-    beta_2_obs ~ dnorm(mean = 0, sd = 0.5)   # Poids du nsat (attendu < 0)
+code_gps_quality <- nimble::nimbleCode({
+  for (i in 1:N) {
+    # Modélisation de l'erreur GPS (sigma_obs) en fonction du signal
+    # log() garantit que sigma_obs est toujours strictement positif
+    log(sigma_obs[i]) <- b0_err + b_hdop * hdop[i] + b_nsat * nsat[i]
+    
+    # L'observation dépend de la vraie altitude et de l'erreur calculée au point i
+    obs_alt[i] ~ dnorm(mean = true_alt[i], sd = sigma_obs[i])
+    
+    # Processus biologique global (Log-normale unique)
+    true_alt[i] ~ dlnorm(meanlog = mu, sdlog = sigma)
+  }
+  
+  # PRIORS : Paramètres biologiques
+  mu ~ dnorm(0, sd = 3)
+  sigma ~ dlnorm(0, sdlog = 1)
+  
+  # PRIORS : Paramètres de l'erreur de mesure
+  b0_err ~ dnorm(2, sd = 1)  # Intercept de l'erreur (moyenne log-erreur)
+  b_hdop ~ dnorm(0, sd = 1)  # Effet du HDOP (attendu positif : + de HDOP = + d'erreur)
+  b_nsat ~ dnorm(0, sd = 1)  # Effet du nSat (attendu négatif : + de Sat = - d'erreur)
 })
 
 # ============================================================================
-# 3. VALEURS INITIALES (Sécurisées)
+# 3. INITIALISATION ET COMPILATION
 # ============================================================================
-
-init_alt_val <- ifelse(gps$Altitude_m <= 0, 1, gps$Altitude_m)
 
 inits <- list(
-  list(mu = 0, sigma_lognorm = 1, beta_0_obs = 1, beta_1_obs = 0.1, beta_2_obs = -0.1, true_alt = init_alt_val),
-  list(mu = 1, sigma_lognorm = 0.5, beta_0_obs = 2, beta_1_obs = 0.2, beta_2_obs = -0.2, true_alt = init_alt_val),
-  list(mu = -0.5, sigma_lognorm = 1.2, beta_0_obs = 0.5, beta_1_obs = 0, beta_2_obs = 0, true_alt = init_alt_val)
+  mu = 2,
+  sigma = 1,
+  b0_err = 2,
+  b_hdop = 0,
+  b_nsat = 0,
+  true_alt = pmax(gps$real_altitude_DEM_EU, 1)
 )
 
-# ============================================================================
-# 4. COMPILATION ET EXÉCUTION
-# ============================================================================
+model <- nimble::nimbleModel(
+  code = code_gps_quality, 
+  constants = constants_list, 
+  data = data_list, 
+  inits = inits
+)
 
-model <- nimbleModel(code = code, 
-                     constants = constants, 
-                     data = data_list, 
-                     inits = inits)
+cModel <- nimble::compileNimble(model)
 
-cModel <- compileNimble(model)
+# Configuration MCMC
+mcmcConf <- nimble::configureMCMC(
+  model, 
+  monitors = c('mu', 'sigma', 'b0_err', 'b_hdop', 'b_nsat'),
+  print = TRUE
+)
 
-# ============================================================================
-# 5. CONFIGURATION DU MCMC
-# ============================================================================
-
-mcmcConf <- configureMCMC(model, 
-                          monitors = c(
-                            'mu', 
-                            'sigma_lognorm', 
-                            'beta_0_obs', 
-                            'beta_1_obs', 
-                            'beta_2_obs'))
-
-mcmc <- buildMCMC(mcmcConf)
-cMcmc <- compileNimble(mcmc, project = model)
+mcmc <- nimble::buildMCMC(mcmcConf)
+cMcmc <- nimble::compileNimble(mcmc, project = model)
 
 # ============================================================================
-# 6. EXÉCUTION DU MCMC
+# 4. EXÉCUTION DU MCMC
 # ============================================================================
 
-niter <- 100000
+niter <- 10000
 nburnin <- niter*0.5
 
 samples <- runMCMC(cMcmc, 
@@ -111,197 +104,144 @@ samples <- runMCMC(cMcmc,
                    samplesAsCodaMCMC = TRUE)
 
 # ============================================================================
-# 7. DIAGNOSTICS
+# 5. DIAGNOSTICS
 # ============================================================================
+
+summary_res <- MCMCvis::MCMCsummary(samples)
+print(summary_res)
 
 # Traceplots
 MCMCtrace(samples, pdf = FALSE)
 
-# Résumé des paramètres principaux
-MCMCsummary(samples)
-
 # Plot paramètre estimé
 MCMCplot(samples)
 
-# ============================================================================
-# 8. EXTRACTION DES RÉSULTATS
-# ============================================================================
-
-# Combiner les chaînes
-samples_combined <- as.matrix(samples)
-
-# Paramètres estimés de la distribution log-normale (Vérité biologique)
-mu_samples <- samples_combined[, 'mu']
-sigma_lognorm_samples <- samples_combined[, 'sigma_lognorm']
-
-# ============================================================================
-# 10. DISTRIBUTION DES HAUTEURS ESTIMÉES & SIMULATION
+# ===============================================================
+# 5. EXTRACTION ET SIMULATION POUR VALIDATION
 # ============================================================================
 
-# Récupération des médianes via MCMCsummary
-summ <- MCMCsummary(samples)
-mu_med <- summ["mu", 1]
-sigma_med <- summ["sigma_lognorm", 1]
+samples_combined <- do.call(rbind, samples)
+summ <- MCMCvis::MCMCsummary(samples)
 
-# Pour la simulation de l'obs, on calcule l'erreur moyenne prédite (sigma_obs)
-# On utilise les médianes des bêtas et les moyennes des variables scalées (0 par définition)
-beta0_med <- summ["beta_0_obs", 1]
-std_dev_sim <- exp(beta0_med) # Erreur typique quand HDOP/nsat sont à leur moyenne
+# Paramètres médians
+mu_est <- summ["mu", "50%"]
+sigma_est <- summ["sigma", "50%"]
+b0 <- summ["b0_err", "50%"]
+bh <- summ["b_hdop", "50%"]
+bn <- summ["b_nsat", "50%"]
 
-# Génération de la distribution théorique (n = nombre de points GPS)
-n_pts <- nrow(gps)
-y_values <- rlnorm(n = n_pts, meanlog = mu_med, sdlog = sigma_med)
-
-lognorm_data <- data.frame(alt_theo = y_values)
-
-# Simulation de ce que le GPS "verrait" avec cette théorie + l'erreur estimée
-lognorm_data$alt_obs <- rnorm(n = n_pts, mean = lognorm_data$alt_theo, sd = std_dev_sim)
-
-colors <- c("Simulated theoric alt" = "#35b779", 
-            "Simulated observed alt" = "#440154", 
-            "Observed alt" = "black")
-
-# Graphique 1 : Théorie vs Réel
-plot1 <- ggplot() +
-  geom_histogram(data = lognorm_data, 
-                 aes(x = alt_theo, y = ..density.. , fill = "Simulated theoric alt"), 
-                 binwidth = 30, color = "white", alpha = 0.7) +
-  geom_histogram(data = gps, 
-                 aes(x = Altitude_m, y = ..density.., fill = "Observed alt"), 
-                 binwidth = 30, color = "black", alpha = 0.2) +
-  labs(x = "Height (m)", y = "Density", title = "A: Sim true alt (Log-Norm) vs Data") +
-  scale_fill_manual(values = colors) +
-  theme_minimal() +
-  coord_flip(xlim = c(-150, 1000)) + 
-  theme(legend.position = "none")
-
-# Calcul de la similarité (Distance de Wasserstein)
-EWD <- round(wasserstein1d(lognorm_data$alt_obs, gps$Altitude_m), 2)
-
-# Graphique 2 : Observation Simulée vs Observation Réelle (Validation du modèle)
-plot2 <- ggplot() +
-  geom_histogram(data = lognorm_data, 
-                 aes(x = alt_obs, y = ..density.. , fill = "Simulated observed alt"), 
-                 binwidth = 30, color = "white", alpha = 0.7) +
-  geom_histogram(data = gps, 
-                 aes(x = Altitude_m, y = ..density.., fill = "Observed alt"), 
-                 binwidth = 30, color = "black", alpha = 0.2) +
-  labs(x = "Height (m)", y = "Density", 
-       title = "B: Observed vs Sim obs alt", 
-       subtitle = paste("Wasserstein Distance (Similarity):", EWD)) +
-  scale_fill_manual(values = colors) +
-  theme_minimal() +
-  coord_flip(xlim = c(-150, 1000)) + 
-  theme(legend.position = "none")
-
-plot_comparison <- plot1 + plot2
-print(plot_comparison)
-ggsave(filename = "figures/07_models/b_complex_model/flight_height_distribution.png",plot = plot_comparison)
-
-# ============================================================================
-# 11. DISTRIBUTION DES HAUTEURS AVEC ZONES DE RISQUE
-# ============================================================================
-
-# Calculer pour chaque échantillon MCMC (Propagande de l'incertitude)
-prop_samples <- t(apply(samples_combined, 1, function(x) {
-  # Utilisation des noms exacts du modèle
-  p0_20 <- plnorm(20, x['mu'], x['sigma_lognorm'])
-  p20_200 <- plnorm(200, x['mu'], x['sigma_lognorm']) - p0_20
-  p200_300 <- plnorm(300, x['mu'], x['sigma_lognorm']) - plnorm(200, x['mu'], x['sigma_lognorm'])
-  p300_inf <- 1 - plnorm(300, x['mu'], x['sigma_lognorm'])
-  
-  c(p_0_20 = p0_20, p_20_200 = p20_200, p_200_300 = p200_300, p_300_inf = p300_inf)
-}))
-
-# Résumé des proportions (médiane et IC 95%)
-prop_summary <- apply(prop_samples, 2, function(x) {
-  c(median = median(x), lower = quantile(x, 0.025), upper = quantile(x, 0.975))
-})
-
-# Créer les données pour le graphique
-x_vals <- seq(0, 1700, length.out = 10000)
-dens_vals <- dlnorm(x_vals, meanlog = mu_med, sdlog = sigma_med)
-
-pg_data_complex <- data.frame(x = x_vals, y = dens_vals) |>
-  mutate(fill_group = case_when(
-      x <= 20 ~ "0_20",
-      x <= 200 ~ "20_200",
-      x <= 300 ~ "200_300",
-      TRUE ~ "300_inf"
-    ))
-
-# Génération des labels propres
-create_label <- function(tag, id) {
-  sprintf("%s = %.1f%% [%.1f - %.1f]", tag, 
-          prop_summary['median', id] * 100, 
-          prop_summary['lower.2.5%', id] * 100, 
-          prop_summary['upper.97.5%', id] * 100)
-}
-
-# Créer les labels avec proportions
-label_0_20 <- sprintf("0-20 m = %.1f%% (%.1f-%.1f%%)",
-                      prop_summary['median', 'p_0_20'] * 100,
-                      prop_summary['lower.2.5%', 'p_0_20'] * 100,
-                      prop_summary['upper.97.5%', 'p_0_20'] * 100)
-
-label_20_200 <- sprintf("20-200 m = %.1f%% (%.1f-%.1f%%)",
-                        prop_summary['median', 'p_20_200'] * 100,
-                        prop_summary['lower.2.5%', 'p_20_200'] * 100,
-                        prop_summary['upper.97.5%', 'p_20_200'] * 100)
-
-label_200_300 <- sprintf("200-300 m = %.1f%% (%.1f-%.1f%%)",
-                         prop_summary['median', 'p_200_300'] * 100,
-                         prop_summary['lower.2.5%', 'p_200_300'] * 100,
-                         prop_summary['upper.97.5%', 'p_200_300'] * 100)
-
-label_300_inf <- sprintf(">300 m = %.1f%% (%.1f-%.1f%%)",
-                         prop_summary['median', 'p_300_inf'] * 100,
-                         prop_summary['lower.2.5%', 'p_300_inf'] * 100,
-                         prop_summary['upper.97.5%', 'p_300_inf'] * 100)
-
-
-# Affichage graphique avec zones Offshore vs Onshore
-final_plot <- ggplot(pg_data_complex, aes(x = x, y = y, fill = fill_group)) +
-  geom_area(alpha = 0.6) +
-  geom_line(color = "black") +
-  geom_vline(xintercept = 20, linetype = "longdash", col = "grey") +
-  geom_vline(xintercept = 200, linetype = "longdash", col = "grey") +
-  geom_vline(xintercept = 300, linetype = "longdash") +
-  coord_flip(xlim = c(0, 1700)) +
-  
-  scale_fill_manual(
-    name = "Flight Height Proportions (95% CI)",
-    values = c(
-      "0_20"    = "#f39c38ff", # Zone de garde
-      "20_200"  = "#f96048ff", # Danger Onshore + Bas Offshore
-      "200_300" = "#457affff", # Danger Offshore pur
-      "300_inf" = "#a8f584ff"  # Sécurité survol
-    ),
-    labels = c(
-      "0_20" = label_0_20,
-      "20_200" = label_20_200,
-      "200_300" = label_200_300,
-      "300_inf" = label_300_inf
-    )
-  ) +
-  
-  labs(
-    title = "Estimated Flight Height Distribution",
-    subtitle = "Estimated distribution with risk zones",
-    x = "Height (m)", 
-    y = "Probability Density"
-  ) +
-  
-  theme_classic() + 
-  theme(
-    axis.text.x = element_blank(),
-    axis.ticks.x = element_blank(),
-    legend.position = c(0.65, 0.4)
+# Simulation des données (Prise en compte de l'erreur variable par point)
+# On simule 'alt_theo' puis on applique l'erreur spécifique prédite par HDOP/nSat
+lognorm_data <- gps |>
+  dplyr::mutate(
+    alt_theo = stats::rlnorm(dplyr::n(), meanlog = mu_est, sdlog = sigma_est),
+    # Calcul du sigma_obs prédit pour CHAQUE point
+    pred_sigma_obs = exp(b0 + bh * hdop_s + bn * nsat_s),
+    alt_obs = stats::rnorm(dplyr::n(), mean = alt_theo, sd = pred_sigma_obs)
   )
 
-print(final_plot)
-ggsave(filename = "figures/07_models/b_complex_model/estimated_flight_height.png",plot = final_plot)
+# ============================================================================
+# 6. GRAPHIQUES DE VALIDATION (DISTRIBUTION ESTIMÉE)
+# ============================================================================
 
-# Export
-cat("\n=== FINAL PROPORTIONS (%) ===\n")
-print(round(prop_summary * 100, 1))
+colors <- c("Simulated theoric alt" = "blue", 
+            "Simulated observed alt" = "red", 
+            "Observed alt" = "black")
+
+# Plot 1 : Distribution Biologique Corrigée vs Observée
+plot1 <- ggplot2::ggplot() +
+  ggplot2::geom_histogram(data = lognorm_data, 
+                          ggplot2::aes(x = alt_theo, y = ..density.., fill = "Simulated theoric alt"), 
+                          binwidth = 50, color = "black", position = "identity") +
+  ggplot2::geom_histogram(data = gps, 
+                          ggplot2::aes(x = real_altitude_DEM_EU, y = ..density.., fill = "Observed alt"), 
+                          binwidth = 50, color = "black", alpha = 0.3) +
+  ggplot2::labs(x = "Height (m)", y = "Density", title = "Sim true alt") +
+  ggplot2::scale_fill_manual(values = colors) +
+  ggplot2::theme_minimal() +
+  ggplot2::coord_flip(xlim = c(-200, 1000)) + 
+  ggplot2::theme(legend.position = "none", axis.text.x = ggplot2::element_blank())
+
+# Plot 2 : Validation du Modèle (Simulated Obs vs Real Obs)
+EWD <- transport::wasserstein1d(lognorm_data$alt_obs, gps$real_altitude_DEM_EU)
+
+plot2 <- ggplot2::ggplot() +
+  ggplot2::geom_histogram(data = lognorm_data, 
+                          ggplot2::aes(x = alt_obs, y = ..density.., fill = "Simulated observed alt"), 
+                          binwidth = 50, color = "black", position = "identity") +
+  ggplot2::geom_histogram(data = gps, 
+                          ggplot2::aes(x = real_altitude_DEM_EU, y = ..density.., fill = "Observed alt"), 
+                          binwidth = 50, color = "black", alpha = 0.3) +
+  ggplot2::labs(x = "Height (m)", y = "Density", title = "Observed vs Sim obs alt", 
+                subtitle = paste("Similarity (EWD):", round(EWD, 2))) +
+  ggplot2::scale_fill_manual(values = colors) +
+  ggplot2::theme_minimal() +
+  ggplot2::coord_flip(xlim = c(-200, 1000)) + 
+  ggplot2::theme(legend.position = "none", axis.text.x = ggplot2::element_blank())
+
+final_validation_plot <- plot1 + plot2
+print(final_validation_plot)
+
+ggplot2::ggsave(filename = "figures/07_models/b_complex_model/flight_height_distribution_complex_model.png", plot = final_validation_plot)
+
+
+# Calcul des proportions à partir des échantillons MCMC
+get_props <- function(mu, sigma) {
+  p0_20    <- stats::plnorm(20, mu, sigma)
+  p20_200  <- stats::plnorm(200, mu, sigma) - p0_20
+  p200_inf <- 1 - stats::plnorm(200, mu, sigma)
+  c(p0_20 = p0_20, p20_200 = p20_200, p200_inf = p200_inf)
+}
+
+prop_samples <- t(apply(samples_combined, 1, function(x) get_props(x['mu'], x['sigma'])))
+
+# Synthèse des stats pour les labels
+prop_summary <- apply(prop_samples, 2, function(x) {
+  c(median = stats::median(x), lower = stats::quantile(x, 0.025), upper = stats::quantile(x, 0.975))
+})
+
+# Préparation du graphique
+x_vals <- seq(0, 1000, length.out = 10000)
+mu_med <- median(samples_combined[, 'mu'])
+sigma_med <- median(samples_combined[, 'sigma'])
+dens_vals <- stats::dlnorm(x_vals, meanlog = mu_med, sdlog = sigma_med)
+
+pg_data <- data.frame(x = x_vals, y = dens_vals) |>
+  dplyr::mutate(
+    fill_group = dplyr::case_when(
+      x <= 20 ~ "0_20",
+      x <= 200 ~ "20_200",
+      TRUE ~ "200_inf"
+    )
+  )
+
+# Labels dynamiques
+label_0_20 <- sprintf("0-20m: %.1f%% [%.1f-%.1f]", 
+                      prop_summary['median', 'p0_20']*100, prop_summary['lower.2.5%', 'p0_20']*100, prop_summary['upper.97.5%', 'p0_20']*100)
+label_20_200 <- sprintf("20-200m: %.1f%% [%.1f-%.1f]", 
+                        prop_summary['median', 'p20_200']*100, prop_summary['lower.2.5%', 'p20_200']*100, prop_summary['upper.97.5%', 'p20_200']*100)
+label_200_inf <- sprintf(">200m: %.1f%% [%.1f-%.1f]", 
+                         prop_summary['median', 'p200_inf']*100, prop_summary['lower.2.5%', 'p200_inf']*100, prop_summary['upper.97.5%', 'p200_inf']*100)
+
+final_plot <- ggplot2::ggplot(pg_data, ggplot2::aes(x = x, y = y, fill = fill_group)) +
+  ggplot2::geom_area(alpha = 0.7) +
+  ggplot2::geom_line(color = "black", linewidth = 0.3) +
+  ggplot2::geom_vline(xintercept = c(20, 200), linetype = "longdash", color = "gray70") +
+  ggplot2::scale_fill_manual(
+    name = "Flight height distribution",
+    values = c("0_20" = "#f39c38ff", "20_200" = "#f96048ff", "200_inf" = "#457affff"),
+    labels = c("0_20" = label_0_20, "20_200" = label_20_200, "200_inf" = label_200_inf)
+  ) +
+  ggplot2::coord_flip(xlim = c(0, 800)) +
+  ggplot2::labs(
+    title = "Distribution of Flight Heights corrected by GPS Quality",
+    subtitle = "Accounted for HDOP and nSat effects on measurement error",
+    x = "Height (m)", y = "Frequency"
+  ) +
+  ggplot2::theme_classic() +
+  ggplot2::theme(legend.position = "right")
+
+print(final_plot)
+
+# Sauvegarde
+ggplot2::ggsave("figures/07_models/b_complex_model/estimated_flight_height_complex_model.png", final_plot, width = 10, height = 6)

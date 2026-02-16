@@ -43,14 +43,14 @@ code_joint <- nimble::nimbleCode({
     # L'observation en vol est la vraie hauteur + l'erreur étalonnée
     obs_flight[i] ~ dnorm(true_alt[i], sd = sigma_obs)
     
-    # La distribution écologique de la hauteur de vol
+    # La distribution réelle de la hauteur de vol
     true_alt[i] ~ dlnorm(meanlog = mu, sdlog = sigma)
   }
   
   # --- PRIORS ---
   sigma_obs ~ dunif(0, 50)  # Prior sur l'erreur GPS
-  mu ~ dnorm(0, sd = 3)      # Moyenne log-normale du vol
-  sigma ~ dlnorm(0, sdlog = 1) # Variance du vol
+  mu ~ dnorm(mean = 0, sd = 3)      # Moyenne log-normale du vol
+  sigma ~ dlnorm(mean = 0, sdlog = 1) # Variance du vol
 })
 
 # ============================================================================
@@ -92,14 +92,14 @@ mcmc <- nimble::buildMCMC(mcmcConf)
 cMcmc <- nimble::compileNimble(mcmc, project = model)
 
 # Exécution
-niter <- 10000
+niter <- 50000
 nburnin <- niter * 0.5
 
 samples <- nimble::runMCMC(
   cMcmc, 
   niter = niter,
   nburnin = nburnin,
-  nchains = 3,
+  nchains = 5,
   samplesAsCodaMCMC = TRUE
 )
 
@@ -129,14 +129,14 @@ sigma_obs_est <- summary_res["sigma_obs", "50%"]
 
 # On simule 10 000 points de la "vraie" distribution (sans erreur GPS)
 # C'est cette distribution qui doit servir pour les zones de risque
-true_height_sim <- rlnorm(100000, meanlog = mu_est, sdlog = sigma_est)
+true_height_sim <- rlnorm(10000, meanlog = mu_est, sdlog = sigma_est)
 
 # On simule ce que le GPS "verrait" avec l'erreur estimée sur le dataset complet
-obs_height_sim <- rnorm(100000, mean = true_height_sim, sd = sigma_obs_est)
+obs_height_sim <- rnorm(10000, mean = true_height_sim, sd = sigma_obs_est)
 
 comparison_df <- data.frame(
   height = c(true_height_sim, obs_height_sim),
-  type = rep(c("Réelle (Corrigée)", "Simulée (avec Erreur GPS)"), each = 10000)
+  type = rep(c("Real (corrected)", "Simulation (with GPS error)"), each = 10000)
 )
 
 # Graphique de comparaison
@@ -145,9 +145,9 @@ plot_comparison <- ggplot2::ggplot(comparison_df, ggplot2::aes(x = height, fill 
   ggplot2::coord_flip(xlim = c(0, 800)) +
   ggplot2::labs(
     title = "Impact de la correction de l'erreur GPS",
-    subtitle = paste0("Erreur GPS estimée (sigma_obs) : ", round(sigma_obs_est, 2), " m"),
-    x = "Hauteur (m)",
-    y = "Densité"
+    subtitle = paste0("Estimated GPS error (sigma_obs) : ", round(sigma_obs_est, 2), " m"),
+    x = "Altitude (m)",
+    y = ""
   ) +
   ggplot2::theme_minimal()
 
@@ -197,10 +197,10 @@ plot1 <- ggplot2::ggplot() +
   ggplot2::geom_histogram(data = flight_data, 
                           ggplot2::aes(x = real_altitude_DEM_EU, y = ..density.., fill = "Raw Observed Data"), 
                           binwidth = 50, color = "black", alpha = 0.3) +
-  ggplot2::labs(x = "Height (m)", y = "Density", title = "1. Biological Distribution (Corrected)") +
+  ggplot2::labs(x = "Height (m)", y = "Density", title = "1. Biological Distribution  -  Corr vs Obs") +
   ggplot2::scale_fill_manual(values = colors) +
   ggplot2::theme_minimal() +
-  ggplot2::coord_flip(xlim = c(-100, 1500)) + 
+  ggplot2::coord_flip(xlim = c(-100, 800)) + 
   ggplot2::theme(legend.position = "none")
 
 # Plot 2: Validation du modèle (Simulé vs Observé)
@@ -214,11 +214,11 @@ plot2 <- ggplot2::ggplot() +
                           ggplot2::aes(x = real_altitude_DEM_EU, y = ..density.., fill = "Raw Observed Data"), 
                           binwidth = 50, color = "black", alpha = 0.3) +
   ggplot2::labs(x = "Height (m)", y = "Density", 
-                title = "2. Model Validation", 
+                title = "2. Model Validation -  Sim vs Obs", 
                 subtitle = paste("Wasserstein Dist:", round(EWD, 2))) +
   ggplot2::scale_fill_manual(values = colors) +
   ggplot2::theme_minimal() +
-  ggplot2::coord_flip(xlim = c(-100, 1500)) + 
+  ggplot2::coord_flip(xlim = c(-100, 800)) + 
   ggplot2::theme(legend.position = "none")
 
 combined_plot <- plot1 + plot2
@@ -234,9 +234,8 @@ ggplot2::ggsave("figures/07_models/d_correct_fulldataset/flight_height_correctio
 prop_samples <- t(apply(samples_combined, 1, function(x) {
   p0_20   <- plnorm(20, x['mu'], x['sigma'])
   p20_200  <- plnorm(200, x['mu'], x['sigma']) - p0_20
-  p200_300 <- plnorm(300, x['mu'], x['sigma']) - plnorm(200, x['mu'], x['sigma'])
-  p300_inf <- 1 - plnorm(300, x['mu'], x['sigma'])
-  c(p_0_20 = p0_20, p_20_200 = p20_200, p_200_300 = p200_300, p_300_inf = p300_inf)
+  p200_inf <- 1 - plnorm(200, x['mu'], x['sigma'])
+  c(p_0_20 = p0_20, p_20_200 = p20_200, p_200_inf = p200_inf)
 }))
 
 prop_summary <- apply(prop_samples, 2, function(x) {
@@ -244,7 +243,7 @@ prop_summary <- apply(prop_samples, 2, function(x) {
 })
 
 # Préparation du graphique final (Area Plot)
-x_vals <- seq(0, 1500, length.out = 1000)
+x_vals <- seq(0, 800, length.out = 1000)
 dens_vals <- dlnorm(x_vals, meanlog = mu_med, sdlog = sigma_med)
 
 pg_data <- data.frame(x = x_vals, y = dens_vals) |>
@@ -252,8 +251,7 @@ pg_data <- data.frame(x = x_vals, y = dens_vals) |>
     fill_group = dplyr::case_when(
       x <= 20 ~ "0_20",
       x <= 200 ~ "20_200",
-      x <= 300 ~ "200_300",
-      TRUE ~ "300_inf"
+      TRUE ~ "200_inf"
     )
   )
 
@@ -268,20 +266,29 @@ create_label <- function(id, name) {
 labels_risk <- c(
   "0_20"    = create_label("p_0_20", "0-20m"),
   "20_200"  = create_label("p_20_200", "20-200m"),
-  "200_300" = create_label("p_200_300", "200-300m"),
-  "300_inf" = create_label("p_300_inf", ">300m")
+  "200_inf" = create_label("p_200_inf", ">200m")
 )
 
 final_risk_plot <- ggplot2::ggplot(pg_data, ggplot2::aes(x = x, y = y, fill = fill_group)) +
   ggplot2::geom_area(alpha = 0.8) +
   ggplot2::geom_line() +
-  ggplot2::scale_fill_manual(name = "Risk Zones (Corrected)", values = c(
-    "0_20" = "#f39c38ff", "20_200" = "#f96048ff", "200_300" = "#457affff", "300_inf" = "#a8f584ff"
-  ), labels = labels_risk) +
-  ggplot2::coord_flip(xlim = c(0, 1000)) +
-  ggplot2::labs(title = "Final Corrected Flight Height Distribution", x = "Altitude (m)", y = "Density") +
-  ggplot2::theme_classic() +
-  ggplot2::theme(legend.position = "right")
 
+  ggplot2::geom_vline(xintercept = 20, linetype = "longdash", col = "grey") +
+  ggplot2::geom_vline(xintercept = 200, linetype = "longdash", col = "grey") +
+  
+  ggplot2::scale_fill_manual(name = "Proportion of points (95% CI)", values = c(
+    "0_20" = "#f39c38ff", "20_200" = "#f96048ff", "200_inf" = "#ffe433ff"
+  ), labels = labels_risk) +
+  
+  ggplot2::coord_flip(xlim = c(0, 800)) +
+  
+  ggplot2::labs(title = "Distribution of Corncrake Flight Heights during migration", x = "Flight height (m)", y = "Frequency") +
+  ggplot2::theme_classic() +
+  ggplot2::theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position = c(0.65, 0.4)
+  )
 print(final_risk_plot)
+
 ggsave(filename = "figures/07_models/d_correct_fulldataset/estimated_flight_height_DEM_EU_cleaned_dataset.png",plot = final_risk_plot)
