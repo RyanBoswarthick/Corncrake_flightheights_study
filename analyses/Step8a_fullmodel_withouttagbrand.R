@@ -63,13 +63,13 @@ code_aggregated <- nimble::nimbleCode({
 # 3. INITIALISATIONS ET COMPILATION
 # ============================================================================
 
-my_inits <- base::replicate(n = 3, simplify = FALSE, expr = {
+my_inits <- base::replicate(n = 5, simplify = FALSE, expr = {
   base::list(
     mu_alt    = stats::rnorm(1, 3, 0.5),
     sigma_alt = stats::rlnorm(1, 0, 0.5),
-    b0_err    =   b0_err ~ dnorm(2, sd = 1),
-    b_hdop    = 0,
-    b_nsat    = 0
+    b0_err = stats::rnorm(1, 2, 0.5), 
+    b_hdop = 0, 
+    b_nsat = 0
   )
 })
 
@@ -88,13 +88,13 @@ cmcmc_simple  <- nimble::compileNimble(rmcmc_simple, project = model_simple)
 # ============================================================================
 # 4. EXÉCUTION MCMC
 # ============================================================================
-niter <- 10000
+niter <- 50000
 
 samples <- nimble::runMCMC(
   cmcmc_simple, 
   niter = niter, 
   nburnin = niter*0.5, 
-  nchains = 3, 
+  nchains = 5, 
   samplesAsCodaMCMC = TRUE)
 
 # ============================================================================
@@ -123,7 +123,8 @@ nsat_mean   <- base::mean(my_constants$nsat_f, na.rm = TRUE)
 sd_gps_sim <- base::exp(b0_est + (b_hdop_est * hdop_mean) + (b_nsat_est * nsat_mean))
 
 # Génération des données simulées
-n_sim <- base::nrow(flight_data)
+n_sim <- 1000
+
 sim_data <- base::data.frame(
   alt_theo = stats::rlnorm(n_sim, mu_est, sigma_est)
 ) |>
@@ -132,7 +133,7 @@ sim_data <- base::data.frame(
     alt_obs = stats::rnorm(n_sim, alt_theo, sd_gps_sim)
   )
 base::message("Erreur GPS moyenne simulée (sigma_f) : ", base::round(sd_gps_sim, 2), " m")
-
+#15.44 m
 # ============================================================================
 # 6. VISUALISATION
 # ============================================================================
@@ -143,9 +144,9 @@ EWD <- transport::wasserstein1d(sim_data$alt_obs, flight_data$real_altitude_DEM_
 
 plot_val <- ggplot2::ggplot() +
   ggplot2::geom_histogram(data = sim_data, ggplot2::aes(x = alt_obs, y = ggplot2::after_stat(density), fill = "Simulated"), 
-                          binwidth = 30, alpha = 0.6, color = "black") +
+                          binwidth = 40, alpha = 0.6, color = "black") +
   ggplot2::geom_histogram(data = flight_data, ggplot2::aes(x = real_altitude_DEM_EU, y = ggplot2::after_stat(density), fill = "Observed"), 
-                          binwidth = 30, alpha = 0.4, color = "black") +
+                          binwidth = 40, alpha = 0.4, color = "black") +
   ggplot2::scale_fill_manual(values = colors) +
   ggplot2::labs(title = "Validation : Modèle Agrégé",
                 subtitle = base::paste("Similarity (Wasserstein):", base::round(EWD, 2)),
@@ -156,7 +157,7 @@ plot_val <- ggplot2::ggplot() +
 base::print(plot_val)
 
 # Sauvegarde
-ggplot2::ggsave("figures/07_models/aggregated_model_validation.png", plot = plot_val, width = 8, height = 6)
+ggplot2::ggsave("figures/07_models/f_bigmodels/flight_height_correction_sim_comparison_8a.png", plot = plot_val, width = 8, height = 6)
 
 # ============================================================================
 # 7. VISUALISATION OBS vs SIM vs CORR
@@ -174,10 +175,10 @@ gps_target <- flight_data
 plot1 <- ggplot2::ggplot() +
   ggplot2::geom_histogram(data = sim_data, 
                           ggplot2::aes(x = alt_theo, y = ggplot2::after_stat(density), fill = "Simulated theoric alt"), 
-                          binwidth = 50, color = "black", alpha = 0.6) +
+                          binwidth = 40, color = "black", alpha = 0.6) +
   ggplot2::geom_histogram(data = gps_target, 
                           ggplot2::aes(x = real_altitude_DEM_EU, y = ggplot2::after_stat(density), fill = "Observed alt"), 
-                          binwidth = 50, color = "black", alpha = 0.3) +
+                          binwidth = 40, color = "black", alpha = 0.4) +
   ggplot2::labs(x = "Height (m)", y = "Density", title = "Simulated True Alt") +
   ggplot2::scale_fill_manual(values = colors) +
   ggplot2::theme_minimal() +
@@ -191,10 +192,10 @@ EWD <- transport::wasserstein1d(sim_data$alt_obs, gps_target$real_altitude_DEM_E
 plot2 <- ggplot2::ggplot() +
   ggplot2::geom_histogram(data = sim_data, 
                           ggplot2::aes(x = alt_obs, y = ggplot2::after_stat(density), fill = "Simulated observed alt"), 
-                          binwidth = 50, color = "black", alpha = 0.6) +
+                          binwidth = 40, color = "black", alpha = 0.6) +
   ggplot2::geom_histogram(data = gps_target, 
                           ggplot2::aes(x = real_altitude_DEM_EU, y = ggplot2::after_stat(density), fill = "Observed alt"), 
-                          binwidth = 50, color = "black", alpha = 0.3) +
+                          binwidth = 40, color = "black", alpha = 0.4) +
   ggplot2::labs(x = "Height (m)", y = "Density", 
                 title = "Observed vs Sim Obs Alt", 
                 subtitle = base::paste("Similarity (Wasserstein):", base::round(EWD, 2))) +
@@ -208,7 +209,7 @@ combined_plot <- plot1 + plot2
 base::print(combined_plot)
 
 ggplot2::ggsave(
-  filename = "figures/07_models/flight_height_validation_aggregated.png",
+  filename = "figures/07_models/f_bigmodels/flight_height_correction_comparison_8a.png",
   plot = combined_plot, 
   width = 10, height = 7
 )
