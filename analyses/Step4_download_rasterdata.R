@@ -28,25 +28,6 @@ data_sf <- sf::st_as_sf(data, coords = c("Longitude", "Latitude"), crs = 4326)
 data_terra <- terra::vect(data_sf)
 terra::plot(data_terra, col = "red", cex = 0.5, pch = 16)
 
-# WORKFLOW SUR GROSSE COUCHE RASTER - ELEVATR
-##########################
-
-# Elevatr 9
-raster_elevatr9 <- terra::rast("C:/Users/rboswarthick/Desktop/PhD stuff/CEFE/International collaboration/Flight heights paper/Covariables/elevation/elevation_elevatr_europe_9.tif")
-
-terra::plot(raster_elevatr9, main = "Points sur Relief")
-
-raster_elevatr9[raster_elevatr9 < 0] <- 0 #sealevel is alti = 0
-terra::plot(raster_elevatr9, main = "Points sur Relief")
-
-##
-altitudes <- terra::extract(raster_elevatr9, data_terra)
-data_sf$altitude_raster_elevatr9 <- altitudes[, 2]
-
-#Create the final altitude data
-data_sf$real_altitude_elevatr9 <-  data_sf$Altitude_m - data_sf$altitude_raster_elevatr9
-
-
 # Elevatr 10
 raster_elevatr10 <- terra::rast("C:/Users/rboswarthick/Desktop/PhD stuff/CEFE/International collaboration/Flight heights paper/Covariables/elevation/elevation_elevatr_europe_10.tif")
 
@@ -63,7 +44,7 @@ data_sf$altitude_raster_elevatr10 <- altitudes[, 2]
 data_sf$real_altitude_elevatr10 <-  data_sf$Altitude_m - data_sf$altitude_raster_elevatr10
 
 
-# WORKFLOW SUR GROSSE COUCHE RASTER DEM EU
+# WORKFLOW ON RASTER DEM EU
 ##########################
 
 alti_raster_DEM_EU <- terra::rast("C:/Users/rboswarthick/Desktop/PhD stuff/CEFE/International collaboration/Flight heights paper/Covariables/elevation/eudem_dem_3035_europe.tif")

@@ -6,7 +6,8 @@ library(transport)
 library(patchwork)
 library(dplyr)
 
-gps_raw <- readr::read_csv("outputs/06_data_largescale_flight.csv") |>
+flight_data <- read.csv("outputs/06_data_flight_2_98%.csv.csv")
+flight_data<-flight_data |>
   dplyr::filter(speed_km_h > 20)
 
 gps <- gps_raw |>

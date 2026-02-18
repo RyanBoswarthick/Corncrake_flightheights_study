@@ -1,6 +1,3 @@
-# ============================================================================
-# 1. CHARGEMENT DES LIBRAIRIES ET DONNÉES
-# ============================================================================
 library(nimble)
 library(coda)
 library(ggplot2)
@@ -9,11 +6,17 @@ library(transport)
 library(patchwork)
 library(dplyr)
 
-# Chargement et nettoyage
-full_data <- readr::read_csv("outputs/05_dataset_with_elevation.csv") |> 
+# ============================================================================
+# 1. CHARGEMENT DES DONNÉES
+# ============================================================================
+all_data<-read.csv("outputs/05_dataset_with_elevation.csv")
+
+ground_data <- read.csv("outputs/06_data_ground_01_99%.csv")
+full_data<-ground_data |>
   dplyr::filter(speed_km_h < 5)
 
-flight_data <- readr::read_csv("outputs/06_data_largescale_flight.csv") |>
+flight_data <- read.csv("outputs/06_data_flight_2_98%.csv.csv")
+flight_data<-flight_data |>
   dplyr::filter(speed_km_h > 20)
 # ============================================================================
 # 2. PRÉPARATION NIMBLE (VERSION AGRÉGÉE)
@@ -67,6 +70,7 @@ my_inits <- base::replicate(n = 5, simplify = FALSE, expr = {
   base::list(
     mu_alt    = stats::rnorm(1, 3, 0.5),
     sigma_alt = stats::rlnorm(1, 0, 0.5),
+
     b0_err = stats::rnorm(1, 2, 0.5), 
     b_hdop = 0, 
     b_nsat = 0
@@ -148,7 +152,7 @@ plot_val <- ggplot2::ggplot() +
   ggplot2::geom_histogram(data = flight_data, ggplot2::aes(x = real_altitude_DEM_EU, y = ggplot2::after_stat(density), fill = "Observed"), 
                           binwidth = 40, alpha = 0.4, color = "black") +
   ggplot2::scale_fill_manual(values = colors) +
-  ggplot2::labs(title = "Validation : Modèle Agrégé",
+  ggplot2::labs(title = "Model validation - Sim vs Obs",
                 subtitle = base::paste("Similarity (Wasserstein):", base::round(EWD, 2)),
                 x = "Altitude (m)", y = "Densité") +
   ggplot2::theme_minimal() +
@@ -160,7 +164,7 @@ base::print(plot_val)
 ggplot2::ggsave("figures/07_models/f_bigmodels/flight_height_correction_sim_comparison_8a.png", plot = plot_val, width = 8, height = 6)
 
 # ============================================================================
-# 7. VISUALISATION OBS vs SIM vs CORR
+# 7. OTHER COMPARATIVE SIM
 # ============================================================================
 
 # 3. Préparation des couleurs et data réelle
@@ -197,7 +201,7 @@ plot2 <- ggplot2::ggplot() +
                           ggplot2::aes(x = real_altitude_DEM_EU, y = ggplot2::after_stat(density), fill = "Observed alt"), 
                           binwidth = 40, color = "black", alpha = 0.4) +
   ggplot2::labs(x = "Height (m)", y = "Density", 
-                title = "Observed vs Sim Obs Alt", 
+                title = "Model validation - Sim vs Obs", 
                 subtitle = base::paste("Similarity (Wasserstein):", base::round(EWD, 2))) +
   ggplot2::scale_fill_manual(values = colors) +
   ggplot2::theme_minimal() +
@@ -213,3 +217,110 @@ ggplot2::ggsave(
   plot = combined_plot, 
   width = 10, height = 7
 )
+
+
+# ============================================================================
+# 8. DISTRIBUTION DES HAUTEURS AVEC ZONES DE RISQUE
+# ============================================================================
+
+# ============================================================================
+# 11. DISTRIBUTION DES HAUTEURS AVEC ZONES DE RISQUE (MODÈLE AGRÉGÉ)
+# ============================================================================
+
+# 1. Conversion des échantillons en matrice pour manipulation facile
+samples_matrix <- base::as.matrix(samples)
+
+# 2. Fonction de calcul des proportions
+calc_proportions <- function(mu, sigma) {
+  p_0_20    <- stats::plnorm(20, meanlog = mu, sdlog = sigma)
+  p_20_200   <- stats::plnorm(200, meanlog = mu, sdlog = sigma) - p_0_20
+  p_200_inf  <- 1 - stats::plnorm(200, meanlog = mu, sdlog = sigma)
+  
+  base::c(p_0_20 = p_0_20, p_20_200 = p_20_200, p_200_inf = p_200_inf)
+}
+
+# 3. Calcul pour chaque échantillon MCMC (Propagation de l'incertitude)
+prop_samples <- base::apply(samples_matrix, 1, function(x) {
+  # On utilise les noms exacts de tes monitors NIMBLE
+  calc_proportions(x["mu_alt"], x["sigma_alt"])
+}) |> base::t()
+
+# 4. Résumé des proportions (médiane et IC 95%)
+prop_summary <- base::apply(prop_samples, 2, function(x) {
+  base::c(median = stats::median(x), 
+          lower  = stats::quantile(x, 0.025), 
+          upper  = stats::quantile(x, 0.975))
+})
+
+# 5. Préparation des données pour la courbe de densité médiane
+x_vals    <- base::seq(0, 1000, length.out = 10000)
+mu_med    <- stats::median(samples_matrix[, "mu_alt"], na.rm = TRUE)
+sigma_med <- stats::median(samples_matrix[, "sigma_alt"], na.rm = TRUE)
+dens_vals <- stats::dlnorm(x_vals, meanlog = mu_med, sdlog = sigma_med)
+
+pg_data <- base::data.frame(x = x_vals, y = dens_vals) |>
+  dplyr::mutate(
+    fill_group = dplyr::case_when(
+      x <= 20 ~ "0_20",
+      x > 20 & x <= 200 ~ "20_200",
+      x > 200 ~ "200_inf"
+    )
+  )
+
+# 6. Création des labels dynamiques (Robustes aux noms de quantile)
+# On utilise les positions [1], [2], [3] pour éviter les soucis de noms "2.5%"
+create_label_risk <- function(zone_name, summary_col) {
+  base::sprintf("%s = %.1f%% (%.1f-%.1f%%)",
+                zone_name,
+                summary_col[1] * 100,
+                summary_col[2] * 100,
+                summary_col[3] * 100)
+}
+
+label_0_20   <- create_label_risk("0-20 m", prop_summary[, "p_0_20"])
+label_20_200  <- create_label_risk("20-200 m", prop_summary[, "p_20_200"])
+label_200_inf <- create_label_risk(">200 m", prop_summary[, "p_200_inf"])
+
+# 7. Graphique final
+plot_risk <- ggplot2::ggplot(pg_data, ggplot2::aes(x = x, y = y, fill = fill_group)) +
+  ggplot2::geom_area(alpha = 0.6) +
+  ggplot2::geom_line(color = "black", linewidth = 0.5) +
+  ggplot2::geom_vline(xintercept = base::c(20, 200), linetype = "longdash", col = "grey40") +
+  ggplot2::coord_flip(xlim = base::c(0, 800)) +
+  ggplot2::scale_fill_manual(
+    name = "Proportion of flight time (95% CI)",
+    values = base::c(
+      "0_20"    = "#f39c38",
+      "20_200"  = "#f96048",
+      "200_inf" = "#f8ef48ff"
+    ),
+    labels = base::c(
+      "0_20"    = label_0_20,
+      "20_200"  = label_20_200,
+      "200_inf" = label_200_inf
+    )
+  ) +
+  ggplot2::labs(
+    title = "Estimated Flight Height Distribution",
+    subtitle = "Estimated distribution with risk zones",
+    x = "Flight height (m)",
+    y = "Frequency"
+  ) +
+  ggplot2::theme_classic() +
+  ggplot2::theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position = c(0.65, 0.5)
+  )
+
+base::print(plot_risk)
+
+# 8. Sauvegarde et sortie console
+ggplot2::ggsave(
+  filename = "figures/07_models/f_bigmodels/estimated_flight_height_aggregated_8a.png",
+  plot = plot_risk, 
+  width = 8, height = 7
+)
+
+base::cat("\n=== PROPORTIONS BY HEIGHT ZONE (AGGREGATED) ===\n")
+base::print(base::round(prop_summary * 100, 1))

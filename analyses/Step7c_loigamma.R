@@ -10,10 +10,10 @@ library(dplyr)
 # 1. PRÉPARATION DES DONNÉES
 # ============================================================================
 
-data<-read.csv("outputs/06_data_largescale_flight.csv")
+data<-read.csv("outputs/06_data_flight_2_98%.csv.csv")
 
-# Filtrage vol (vitesse > 20 km/h)
-gps <- data |> dplyr::filter(speed_km_h > 20)
+gps <- data |> 
+  dplyr::filter(speed_km_h > 20)
 
 flight_heights <- gps$real_altitude_DEM_EU
 # La loi Gamma ne supporte que des valeurs strictement positives (> 0)

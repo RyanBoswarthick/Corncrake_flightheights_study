@@ -7,8 +7,8 @@ This repository contains a specialized analytical pipeline designed to process a
 ## 🤝 Co-authors
 Ireland : J. Carey - NPWS
 Scotland : R. Green, J. Wenston, A. Perkins - RSPB Scotland
-France : F. Jiguet (CESCO), A. Besnard (CEFE), R. Boswarthick (LPO Anjou)
-Estonia :J. Eels, R. Marja
+France : F. Jiguet (CESCO), A. Besnard (CEFE), R. Boswarthick (CEFE - LPO Anjou)
+Estonia : J. Eels, R. Marja
 *Czechia (J. Vlcek, L. Peske) and Belgium (G. Spanoghe, K. Janssens) to come*
 
 ## 🔬 Objectives

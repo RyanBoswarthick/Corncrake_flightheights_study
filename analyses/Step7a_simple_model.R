@@ -10,7 +10,7 @@ library(dplyr)
 # 1. PRÉPARATION DES DONNÉES
 # ============================================================================
 
-data<-read.csv("outputs/06_data_largescale_flight.csv")
+data<-read.csv("outputs/06_data_flight_2_98%.csv.csv")
 
 gps <- data |>
   dplyr::filter(speed_km_h > 20)

@@ -7,8 +7,12 @@ library(patchwork)
 library(dplyr)
 
 # Chargement des deux sources
-full_data <- readr::read_csv("outputs/05_dataset_with_elevation.csv")
-flight_data <- readr::read_csv("outputs/06_data_largescale_flight.csv") |>
+ground_data <- read.csv("outputs/05_dataset_with_elevation.csv")
+full_data<-ground_data |>
+  dplyr::filter(speed_km_h < 5)
+
+flight_data <- read.csv("outputs/06_data_flight_2_98%.csv.csv")
+flight_data<-flight_data |>
   dplyr::filter(speed_km_h > 20)
 
 # Préparation pour NIMBLE

@@ -1,0 +1,15 @@
+# Flight height analysis
+
+## Data overview
+
+From four countries : Estonia, Scotland, Ireland and France.
+Two different tags were deployed : Global messenger and Ornitela.
+### A bit more into the data
+
+53 birds were monitored during this 
+
+57362 fixes in total :
+- 28 902 for France
+- 27357 for Estonia
+- 609 for Scotland
+- 494 for Ireland

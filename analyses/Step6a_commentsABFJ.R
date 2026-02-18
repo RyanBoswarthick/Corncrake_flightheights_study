@@ -1,9 +1,8 @@
-data<-read.csv("outputs/05_flightdata_with_elevation.csv")
+data<-read.csv("outputs/05_dataset_with_elevation.csv")
 
 data <- data |>
   dplyr::arrange(device_id, UTC_datetime) |>
   dplyr::group_by(device_id)
-
 str(data)
 
 ##############
@@ -47,6 +46,8 @@ data_flight_clean_step1<-data_movementype_flying |>
 # Deleting extreme points
 ##############
 
+#### Flight data
+
 data <- data_flight_clean_step1 |>
   dplyr::arrange(device_id, UTC_datetime) |>
   dplyr::group_by(device_id)
@@ -74,3 +75,29 @@ write.csv(
   row.names = FALSE)
 
 gné<-read.csv("outputs/06_data_largescale_flight.csv")
+
+#### Full dataset
+
+full_data <- readr::read_csv("outputs/05_dataset_with_elevation.csv")
+
+data <- full_data |>
+  dplyr::arrange(device_id, UTC_datetime) |>
+  dplyr::group_by(device_id) |>
+  dplyr::filter(speed_km_h<5)
+
+summary(data)
+
+seuils <- quantile(data$real_altitude_DEM_EU, probs = c(0.01, 0.99), na.rm = TRUE)
+
+# Filtrage : on garde les données entre ces deux bornes
+data_filtered <- data[data$real_altitude_DEM_EU >= seuils[1] & data$real_altitude_DEM_EU <= seuils[2], ]
+
+# Vérification
+cat("Seuil bas (2%) :", seuils[1], "\n")
+cat("Seuil haut (98%) :", seuils[2], "\n")
+cat("Nombre de lignes supprimées :", nrow(data) - nrow(data_filtered))
+
+write.csv(
+  data_filtered, 
+  file = "outputs/06_data_ground_01_99%.csv", 
+  row.names = FALSE)
