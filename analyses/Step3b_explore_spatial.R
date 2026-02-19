@@ -6,8 +6,7 @@ data<-read.csv("outputs/02_fulldataset_clean.csv")
 
 data_in_order <- data |>
   dplyr::arrange(device_id, UTC_datetime) |>
-  dplyr::group_by(device_id) |>
-  dplyr::filter(country=="IRE")
+  dplyr::group_by(device_id)
 
 
 data_sf <- sf::st_as_sf(data_in_order, coords = c("Longitude", "Latitude"), crs = 4326)

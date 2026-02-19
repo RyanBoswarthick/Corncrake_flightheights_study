@@ -1,8 +1,8 @@
 
 movement_type <- function(
     df, 
-    dist_max = 500, 
-    duree_min_h = 2) {
+    dist_max, 
+    duree_min_h) {
   
   # --- 1. Préparation globale ---
   # On s'assure que les dates sont au bon format
@@ -51,30 +51,30 @@ movement_type <- function(
       # Calcul de la durée dans la zone
       dt <- base::difftime(base::max(sf_cl$UTC_datetime), base::min(sf_cl$UTC_datetime), units = "hours")
       
-      if(base::as.numeric(dt) >= duree_min_h) {
-        # Extraction coordonnées en WGS84 pour sp
-        sf_cl_4326 <- sf_cl |> sf::st_transform(4326)
-        coords_4326 <- sf::st_coordinates(sf_cl_4326)
-        
-        sp_pts <- sp::SpatialPointsDataFrame(
-          coords = coords_4326,
-          data = base::as.data.frame(sf_cl_4326) |> dplyr::select(-geometry),
-          proj4string = sp::CRS(SRS_string = "EPSG:4326")
-        )
-        
-        # Calcul du polygone MCP
-        mcp_res <- adehabitatHR::mcp(sp_pts, percent = 95)
-        mcp_sf  <- sf::st_as_sf(mcp_res) |> 
-          sf::st_transform(4326) |>
-          dplyr::mutate(
-            device_id = ind,
-            halte_id = cl_id,
-            duree_h = base::round(base::as.numeric(dt), 1),
-            surface_ha = base::round(base::as.numeric(sf::st_area(sf::st_transform(sf::st_as_sf(mcp_res), 3857))) / 10000, 2)
-          )
-        
-        resultats_mcp[[base::paste0(ind, "_", cl_id)]] <- mcp_sf
-      }
+    if (as.numeric(dt) >= duree_min_h) {
+            
+            # FIX: Select ONLY the ID column before converting to Spatial
+            # This prevents the "xy should contain only one column" warning
+            sp_pts <- sf_cl |> 
+              sf::st_transform(4326) |> 
+              dplyr::select(device_id) |>  # Keep only the ID
+              sf::as_Spatial()
+            
+            # Now mcp will run quietly
+            mcp_res <- adehabitatHR::mcp(sp_pts, percent = 95)
+            
+            mcp_sf <- sf::st_as_sf(mcp_res) |> 
+              sf::st_transform(4326) |>
+              dplyr::mutate(
+                device_id = ind,
+                halte_id = cl_id,
+                duree_h = round(as.numeric(dt), 1),
+                # Calculate area by transforming to metric, then back to hectares
+                surface_ha = round(as.numeric(sf::st_area(sf::st_transform(sf::st_as_sf(mcp_res), 3857))) / 10000, 2)
+              )
+            
+            resultats_mcp[[paste0(ind, "_", cl_id)]] <- mcp_sf
+          }
     }
     resultats_points[[ind]] <- sf_ind
   }

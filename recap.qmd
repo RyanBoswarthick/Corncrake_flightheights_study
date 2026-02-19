@@ -1,15 +1,142 @@
 # Flight height analysis
 
-## Data overview
+## I. Data overview
 
-From four countries : Estonia, Scotland, Ireland and France.
-Two different tags were deployed : Global messenger and Ornitela.
-### A bit more into the data
+From four countries : Estonia, Scotland, Ireland and France. Two different tags were deployed : Global messenger and Ornitela. \### A bit more into the data
 
-53 birds were monitored during this 
+53 birds were monitored during this
 
-57362 fixes in total :
-- 28 902 for France
-- 27357 for Estonia
-- 609 for Scotland
-- 494 for Ireland
+57362 fixes in total : - 28 902 for France - 27357 for Estonia - 609 for Scotland - 494 for Ireland
+
+## II. What I did on the data dataset
+
+### A. Combine + format all datasets
+
+### B. GPS exploration
+
+#### 1. Data
+
+#### 2. Spatial
+
+### C. Altitude values
+
+To ensure the highest accuracy in calculating Height Above Ground Level, the project compares two distinct Digital Elevation Model (DEM) sources.
+
+#### 1. Elevatr
+
+alti_elevatr_10: Extracted using the elevatr package at Zoom Level 10 (\~150m resolution).
+
+![](figures/04_raster\elev_data_withGPS.png)
+
+#### 2. Copernicus Digital Elevation Model
+
+alti_DEM_EU: Extracted from the Copernicus European Digital Elevation Model (25m resolution)
+
+<https://ec.europa.eu/eurostat/web/gisco/geodata/digital-elevation-model/eu-dem>
+
+![](figures/04_raster\raster_alti_allEurope_DEMEU.png){fig-align="center"}
+
+```{r}
+data<-read.csv("outputs/05_dataset_with_elevation.csv")
+summary(data[c(altitude_raster_elevatr10", "altitude_raster_DEMEU")])
+```
+
+For the following steps, as the **EU DEM** layer is the most precise raster for ground level, we will be using it to calculate the true altitude of the bird from the tag measured height.
+
+#### 3. Corrected altitude from raster data
+
+$Altitude_{GPS real} = Altitude_{GPS obs} - Elevation_{ground level}$
+
+The final layer is **real_altitude_DEM_EU**, which is :
+
+$Altitude_{real flight altitude} = Altitude_{GPS measured altitude} - Altitude_{Ground altitude from EU DEM}$
+
+### D. Clean dataset before flight height analysis
+
+```{r}
+data<-read.csv("outputs/05_dataset_with_elevation.csv")
+
+data <- data |>
+  dplyr::arrange(device_id, UTC_datetime) |>
+  dplyr::group_by(device_id)
+```
+
+#### 1. Remove extreme values
+
+Due to the small sample size, 2% extreme data (min and max) was removed from the initial dataset to be sure our estimations are not biased by extreme values.
+
+```{r}
+
+seuils <- quantile(data$real_altitude_DEM_EU, probs = c(0.02, 0.98), na.rm = TRUE)
+
+# Keep data between 0.02 and 0.98
+data_filtered <- data[data$real_altitude_DEM_EU >= seuils[1] & data$real_altitude_DEM_EU <= seuils[2], ]
+
+# Check
+cat("Seuil bas (2%) :", seuils[1], "\n")
+cat("Seuil haut (98%) :", seuils[2], "\n")
+cat("Nombre de lignes supprimées :", nrow(data) - nrow(data_filtered))
+```
+
+#### 2. Categorize the different types of flights
+
+From the 263 reported data in flight, there are two different types of flights that can occur :
+
+-   **Short distance flights** : they represent flights on a few hundred meters. They can be caused by a disturbance, like a predator, and can include territorial behaviours between males. These often occur inside the male's territory.
+
+-   **Long distance flights** : when males move outside of their original territory, it can include migratory movements but also second breeding attempts outside of their first breeding ground, of a movement following a disturbance (for example mowing in France).
+
+There are significant differences in flight parameters between these two types of flight behaviour, and as we are focusing our study on large scale movements, we decided to remove all local and short scale movements from our dataset.
+
+**How I did it : Clustering method**
+
+I coded a function that identifies the stopovers sites, which are sites where the birds spend at least 2h in a 500/1km radius. With these stopover sites identified, each point was then attributed to "local" or "outside" depending of whether it was inside or outside this stopover site.
+
+The fixes were then filtered with the speed, as speed above 20 km/h is considered as a flight behaviour.
+
+```{r}
+# Function that identifies stopovers
+data_fly<-movement_type(
+  data,
+  dist_max = 500,
+  duree_min_h = 2
+)
+
+# Extract different variables from the output
+data_movementype<-data_fly$points
+data_stopover<-data_fly$haltes
+data_trips<-data_fly$trajets
+
+# Filter flight data only
+data_movementype_flying<-data_movementype |>
+  dplyr::filter(speed_km_h>20)
+
+# Filter flight data outside of the individual stopovers
+## Meaning we only keep large scale flights
+data_flight_clean_step1<-data_movementype_flying |>
+  dplyr::filter(type_mouvement=="Large scale flight")
+```
+
+## III. Flight height modeling
+
+We are using a bayesian approach to model flight height, considering the altitude the tag measures is not the exact value.
+
+### A. Simple model
+
+$True alt_{i} = LogN(\mu_{i}, \sigma^2_{i})$
+
+![](images/birds-06-00050-g004-550.jpg){fig-align="left" width="450"}
+
+$Obs alt_{i} = N(True alt_{i}, \sigma^2_{obs})$
+
+![](images/unnamed.png){fig-align="left" width="450"}
+
+### B. Corrected GPS error (sigma obs) with the whole dataset
+
+$Obs ground_{j} = N(0_{j}, \sigma^2_{obs})$
+
+We consider that when the bird is on the ground, the real altitude must be 0, which means that the variation we get for the altitude values mainly depend of the tag error. Therefore, we estimate the \sigma error thanks to the ground data. This relies on the hypothesis that the GPS error is the same on the ground and when the bird is in movement.
+
+$True alt_{i} = LogN(\mu_{i}, \sigma^2_{i})$
+
+$Obs alt_{i} = N(True alt_{i}, \sigma^2_{obs})$
