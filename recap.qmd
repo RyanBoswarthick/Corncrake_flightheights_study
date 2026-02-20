@@ -54,7 +54,7 @@ $Altitude_{real flight altitude} = Altitude_{GPS measured altitude} - Altitude_{
 ### D. Clean dataset before flight height analysis
 
 ```{r}
-data<-read.csv("outputs/05_dataset_with_elevation.csv")
+data<-read.csv("outputs/05_flightdata_with_elevation.csv")
 
 data <- data |>
   dplyr::arrange(device_id, UTC_datetime) |>
@@ -63,7 +63,13 @@ data <- data |>
 
 #### 1. Remove extreme values
 
-Due to the small sample size, 2% extreme data (min and max) was removed from the initial dataset to be sure our estimations are not biased by extreme values.
+Due to the small sample size, 2% extreme data (min and max) was removed from the initial dataset to be sure our estimations are not biased by extreme values :
+
+-   from 273 flight data to 245
+
+-   Min = -107
+
+-   Max = 372
 
 ```{r}
 
@@ -78,9 +84,13 @@ cat("Seuil haut (98%) :", seuils[2], "\n")
 cat("Nombre de lignes supprimées :", nrow(data) - nrow(data_filtered))
 ```
 
+![](figures/06_finaldata_exploration\flight_altitude_distribution.png){width="800"}
+
+![](figures/06_finaldata_exploration\flight_altitude_distribution_cleaned_dataset.png)
+
 #### 2. Categorize the different types of flights
 
-From the 263 reported data in flight, there are two different types of flights that can occur :
+From the 273 reported data in flight (245 after the extremes were removed), there are two different types of flights that can occur :
 
 -   **Short distance flights** : they represent flights on a few hundred meters. They can be caused by a disturbance, like a predator, and can include territorial behaviours between males. These often occur inside the male's territory.
 
@@ -97,8 +107,8 @@ The fixes were then filtered with the speed, as speed above 20 km/h is considere
 ```{r}
 # Function that identifies stopovers
 data_fly<-movement_type(
-  data,
-  dist_max = 500,
+  data_filtered,
+  dist_max = 1000,
   duree_min_h = 2
 )
 
@@ -117,11 +127,27 @@ data_flight_clean_step1<-data_movementype_flying |>
   dplyr::filter(type_mouvement=="Large scale flight")
 ```
 
+-   from 273 flight data, to 245, to 202
+
 ## III. Flight height modeling
+
+### A. Flight data exploration
+
+#### 1. Before cleaning the dataset
+
+![](figures/06_finaldata_exploration\flight_altitude_exploration.png){fig-align="center"}
+
+#### 2. Cleaned data - without extreme values + "large" scale flights
+
+![](figures/06_finaldata_exploration\flight_altitude_exploration_cleaned_dataset.png){fig-align="center"}
 
 We are using a bayesian approach to model flight height, considering the altitude the tag measures is not the exact value.
 
-### A. Simple model
+### B. Models
+
+#### 1. Simple model
+
+##### a. Equations
 
 $True alt_{i} = LogN(\mu_{i}, \sigma^2_{i})$
 
@@ -131,12 +157,74 @@ $Obs alt_{i} = N(True alt_{i}, \sigma^2_{obs})$
 
 ![](images/unnamed.png){fig-align="left" width="450"}
 
-### B. Corrected GPS error (sigma obs) with the whole dataset
+##### b. Results
+
+![](figures/07_models\a_simple_model\flight_height_distributions_DEM_EU_cleaned_dataset.png){fig-align="center"}
+
+![](figures/07_models\a_simple_model\estimated_flight_height_DEM_EU_cleaned_dataset.png){fig-align="center"}
+
+### B. Corrected GPS error (sigma obs) with nsat and hdop
+
+##### a. Equations
+
+$\sigma obs_{i} = \beta_0 + \beta_{hdop}*hdop + \beta_{nsat}*nsat$
+
+i = flight data
+
+High hdop = high error
+
+High nsat = low error
+
+##### b. Results
+
+![](figures/07_models\b_hdopnsat_model\flight_height_distribution.png)
+
+![](figures/07_models\b_hdopnsat_model\estimated_flight_height.png){fig-align="center"}
+
+![](figures/07_models\b_hdopnsat_model\flight_height_distribution_complex_model.png)
+
+### C. Corrected GPS error (sigma obs) with the whole dataset
+
+##### a. Equations
 
 $Obs ground_{j} = N(0_{j}, \sigma^2_{obs})$
+
+*j = ground data*
+
+![](figures/06_finaldata_exploration\ground_data_realalt_explo.png){fig-align="center" width="600"}
 
 We consider that when the bird is on the ground, the real altitude must be 0, which means that the variation we get for the altitude values mainly depend of the tag error. Therefore, we estimate the \sigma error thanks to the ground data. This relies on the hypothesis that the GPS error is the same on the ground and when the bird is in movement.
 
 $True alt_{i} = LogN(\mu_{i}, \sigma^2_{i})$
 
 $Obs alt_{i} = N(True alt_{i}, \sigma^2_{obs})$
+
+*i = flight data*
+
+##### b. Results
+
+![](figures/07_models\d_correct_fulldataset\flight_height_correction_comparison.png){fig-align="center"}
+
+![](figures/07_models\d_correct_fulldataset\estimated_flight_height_DEM_EU_cleaned_dataset.png){fig-align="center"}
+
+### D. Tag brand fixed effect
+
+![](figures/07_models\e_tagbrand_fix_effect\brand_effect_validation_distributions.png)
+
+![](figures/07_models\e_tagbrand_fix_effect\estimated_brand_effect_final_plot.png)
+
+### E. Big model including all my data and effects
+
+#### 1. Sans l'effet tag brand (peu de données pour GM)
+
+![](figures/07_models\f_bigmodels\without_brand\flight_height_correction_comparison_8a.png)
+
+![](figures/07_models\f_bigmodels\without_brand\flight_height_correction_sim_comparison_8a.png)
+
+![](figures/07_models\f_bigmodels\without_brand\estimated_flight_height_aggregated_8a.png)
+
+#### 2. Avec l'effet tag brand
+
+--\> run all analysis with the same n_itter, same priors + initial values + same values for the collision risks (on fait deux zones en mer? une meme zone?)
+
+Random effect on device_id ?

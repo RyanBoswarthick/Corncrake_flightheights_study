@@ -40,7 +40,7 @@ plot_alldata<-ggplot(plot_data, aes(x = hauteur_vol)) +
   # Ligne rouge pour marquer le niveau du sol (0m)
   geom_vline(xintercept = 0, color = "red", linetype = "dashed", size = 1) +
   # Zoom sur une plage réaliste (ex: -20m à 150m) pour ne pas être pollué par les aberrations
-  coord_cartesian(xlim = c(-100, 200)) +
+  coord_cartesian(xlim = c(-100, 200))
   labs(
     title = "Distribution des hauteurs des Crex",
     subtitle = "Source : EU-DEM | Ligne rouge = ground level",
@@ -53,7 +53,7 @@ plot_alldata
 #########
 # DATA EN VOL ONLY
 #########
-data_flight_only<-read.csv("outputs/06_data_largescale_flight.csv")
+data_flight_only<-read.csv("outputs/06_data_flight_2_98%.csv")
 data_flight_only_sf <- sf::st_as_sf(data_flight_only, coords = c("Longitude", "Latitude"), crs = 4326)
 
 plot_data_flight <- data_flight_only_sf |>

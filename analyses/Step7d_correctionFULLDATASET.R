@@ -7,9 +7,11 @@ library(patchwork)
 library(dplyr)
 
 # Chargement des deux sources
-ground_data <- read.csv("outputs/05_dataset_with_elevation.csv")
+ground_data <- read.csv("outputs/06_data_ground_01_99%.csv")
 full_data<-ground_data |>
   dplyr::filter(speed_km_h < 5)
+
+hist(full_data$real_altitude_DEM_EU, breaks = 25)
 
 flight_data <- read.csv("outputs/06_data_flight_2_98%.csv.csv")
 flight_data<-flight_data |>
